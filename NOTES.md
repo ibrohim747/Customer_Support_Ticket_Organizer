@@ -154,3 +154,49 @@ and a test that forgets `":memory:"` would silently write to the real DB.
 the default lives in `cli.py` (`--db`, task 07).
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-13 — Task 01: repo & environment setup
+
+**What I did (myself):** `git init`, GitHub remote, `.gitignore`, `.venv`, `pytest`,
+`requirements.txt`, `ticket_organizer/__init__.py`, smoke test. AI reviewed each step.
+
+**Review findings / things I learned:**
+- `git push` → `src refspec main does not match any`: the first commit was never created because
+  nothing was staged (`git add` missing). Git commits only staged files.
+- `*.db` must not be in git. My reason: personal customer data. AI added two more:
+  it is a generated file (rebuilt from the CSV) and it is binary and changes on every run
+  (unreadable diffs, merge conflicts).
+- `.gitignore`, first version: `/venv, /__pycache__, /output, CLAUDE.md, /tasks`.
+  1. Commas become part of the name → no rule matched.
+  2. The folder is `.venv` (with a dot), not `venv`.
+  3. A leading `/` means "only in the project root"; `__pycache__` is inside subfolders → no leading `/`.
+  4. Trailing `/` marks a folder (`output/`) — clearer.
+- **My decision:** ignore `CLAUDE.md` and `tasks/` — I will show them from my PC.
+  AI noted: ignoring CLAUDE.md could look like hiding AI use; and files in the repo (README)
+  must not link to ignored files.
+- `.gitkeep` is only for empty folders → removed from `ticket_organizer/` and `tests/`.
+- `pip freeze` lists 6 packages, not 1: pytest **depends on** them (dependencies), pip installs them automatically.
+- In Windows PowerShell 5.1, `>` writes **UTF-16** → GitHub shows the file as binary.
+  Fixed with `pip freeze | Out-File -Encoding utf8 requirements.txt` (UTF-8 with BOM; pip reads it fine).
+- `__init__.py` makes the folder a package → `from ticket_organizer.storage import db_creator` works from tests.
+- pytest finds tests by name: file `test_*.py`, function `test_*`.
+  Dummy test was first named `test_storage` → misleading name → renamed to `test_smoke`.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-13 — README: Setup section written by AI
+
+**What I asked:** short on time → asked AI to write the README "Setup" section; I check it afterwards.
+
+**What AI did:** wrote `README.md` (title, one-line description, Setup: clone, venv, activate
+on Windows / macOS-Linux, `pip install -r requirements.txt`, `pytest`). These are the same commands
+I ran myself in task 01.
+
+**How I verify:** clone the repo into an empty folder, follow README step by step, `pytest` must be green
+(task 01 "Done when").
+
+**Verified by me:** _TODO_
