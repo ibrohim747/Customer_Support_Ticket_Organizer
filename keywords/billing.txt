@@ -1,0 +1,78 @@
+# Category: Billing
+# Format: one keyword or phrase per line, case-insensitive.
+# Lines starting with # are comments. Empty lines are ignored.
+# The file name (without .txt) is the category name.
+#
+# NOTE: "discount", "price", "cost" are deliberately NOT here:
+# the assignment says "Do you offer student discounts?" -> Other.
+
+# --- correct forms ---
+bill
+bills
+billing
+billed
+invoice
+invoices
+invoiced
+charge
+charges
+charged
+overcharged
+double charged
+charged twice
+refund
+refunds
+refunded
+money back
+payment
+payments
+pay
+paid
+paying
+subscription
+subscriptions
+renewal
+renewed
+receipt
+receipts
+transaction
+transactions
+credit card
+debit card
+card
+fee
+fees
+cancel subscription
+
+# --- common typos ---
+biling
+billling
+bilng
+invoce
+invioce
+invoise
+invocie
+chrage
+charg
+chargd
+charget
+chraged
+carged
+refnd
+refound
+refunt
+refud
+payement
+paymnet
+paymant
+pyment
+paymet
+subscribtion
+subcription
+subsciption
+subscripton
+reciept
+receit
+recipt
+transacton
+tranaction

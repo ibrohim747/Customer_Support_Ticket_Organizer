@@ -1,0 +1,69 @@
+# Category: Account
+# Format: one keyword or phrase per line, case-insensitive.
+# Lines starting with # are comments. Empty lines are ignored.
+#
+# NOTE: "account" can also appear in billing messages
+# ("charged to my account") -> such a message gets both categories (multi-label).
+
+# --- correct forms ---
+account
+accounts
+password
+passwords
+reset password
+forgot password
+forgot my password
+login
+log in
+logged in
+logging in
+log out
+logout
+sign in
+signed in
+signin
+sign up
+signup
+username
+user name
+email address
+change email
+verify
+verification
+verification code
+2fa
+two-factor
+two factor
+otp
+locked out
+locked
+deactivate
+delete my account
+profile
+
+# --- common typos ---
+acount
+accout
+acconut
+accaunt
+akkount
+pasword
+passwrod
+pssword
+passowrd
+paswword
+loign
+lgoin
+logn
+loggin
+sing in
+singin
+singup
+sing up
+usrname
+usename
+verfication
+verifcation
+verifiction
+profle
+proflie

@@ -1,0 +1,66 @@
+# Category: Technical
+# Format: one keyword or phrase per line, case-insensitive.
+# Lines starting with # are comments. Empty lines are ignored.
+
+# --- correct forms ---
+crash
+crashes
+crashed
+crashing
+error
+errors
+bug
+bugs
+broken
+not working
+doesn't work
+does not work
+won't load
+not loading
+freeze
+freezes
+frozen
+hangs
+slow
+timeout
+timed out
+upload
+download
+install
+update
+sync
+connection
+server
+blank screen
+white screen
+glitch
+404
+500
+
+# --- common typos ---
+crach
+crashs
+chrash
+craches
+crsh
+eror
+errror
+erorr
+bugg
+brokn
+not workng
+notworking
+dosent work
+doesnt work
+wont load
+frezes
+freez
+timout
+uplaod
+upoad
+dowload
+donwload
+instal
+conection
+connetion
+glich

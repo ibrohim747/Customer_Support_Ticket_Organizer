@@ -1,0 +1,156 @@
+# NOTES — AI usage log
+
+AI (Claude) is used as a mentor/reviewer, not as the author of the code.
+Entries are drafted by Claude from our conversations; I review each one and fill in
+**Verified by me** myself.
+
+---
+
+## 2026-11-12 — DB schema: two tables → one table
+
+**What I asked:** The task list planned two tables (`messages` + `message_categories`).
+After discussion I decided one table with 3 columns (`ticket_id`, `message`, `category`) is enough —
+asked AI to update the tasks.
+
+**What AI did:** Did not change anything at first; asked how multi-label categories are stored
+in one `category` column and showed two options:
+- A — one row per (message, category);
+- B — one row per message, categories joined into a string (`"Billing,Technical"`) → `GROUP BY` breaks.
+
+**My decision:** Option A. Table `tickets (ticket_id, message, category, UNIQUE(ticket_id, message, category))`.
+
+**Why (my answer):** simpler code — no `lastrowid`, no second table.
+AI pointed out: "no JOIN" is a weak argument — counting per category in the two-table design
+did not need a JOIN either (`GROUP BY` on `message_categories`); JOIN is only needed to show
+a message together with its categories.
+
+**Cost (my answer):** message text repeats for every category; counting messages (not rows) is harder.
+
+**Important consequence:** accepted / skipped must be counted **per message, not per DB row**,
+otherwise a 2-category message is counted twice and breaks `read == accepted + rejected + skipped`.
+
+**When to change:** if the DB grows large → go back to normalized `messages` + `message_categories`.
+I first suggested "one table per category"; AI showed this contradicts decision 4
+(new category without changing logic) and "categories are rows" — adding `Shipping` would need
+a new table, a 2-category message would be stored in two tables, counting would need `UNION`.
+Term to remember: **normalization**.
+
+**Changed files:** `CLAUDE.md` (decision 5), `tasks/05-storage.md`.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-12 — Creating the DB + review of my first `CREATE TABLE`
+
+**What I asked:** how to create the DB and look at it in TablePlus.
+
+**What AI explained:**
+- An empty file or `sqlite3.connect(path)` creates an SQLite DB.
+- Don't put `.py` files into `output/` — it is for generated files only and is not committed.
+- A relative path (`"tickets.db"`) is resolved from the **terminal's current folder**, not the script's
+  folder → use `output/tickets.db` and run from the project root.
+- Trap: `CREATE TABLE IF NOT EXISTS` silently keeps an old table if the schema changed →
+  `DROP TABLE` and recreate; SQL in TablePlus must match `storage.py` exactly.
+
+**My SQL (first version):**
+```sql
+CREATE TABLE IF NOT EXISTS messages (ticket_id INT, messege TEXT, UNIQUE(ticket_id, messege));
+```
+
+**Review findings:**
+1. No `category` column, and `UNIQUE` must include it (option A: one row per category).
+2. `ticket_id INT` → should be `TEXT`: ids like `T-001` are not numbers; with INT affinity
+   `"007"` is stored as `7` (leading zeros lost) and `"1"` / `"01"` become the same id.
+3. Typo `messege` → `message` (CSV header and code use `message`).
+4. Table name `messages` vs `tickets` in CLAUDE.md — pick one and keep it consistent.
+
+**Second version:**
+```sql
+CREATE TABLE IF NOT EXISTS messages (ticket_id TEXT, messege TEXT, category TEXT, UNIQUE(messege, category));
+```
+Fixed: `ticket_id TEXT`, `category` added.
+Still wrong: `ticket_id` was removed from `UNIQUE` → the same text from two different tickets
+(e.g. two customers write "I can't log in") would be treated as a duplicate and the second one lost.
+Contradicts decision 3 (duplicate = same id **and** same message). Typo `messege` still there.
+
+**Table name:** I chose `messages` (renamed from `tickets` in CLAUDE.md and tasks/05).
+
+**Open question:** I then thought `UNIQUE` is not needed at all, because every column can repeat.
+AI: true for each column **alone**, but the **combination** `(ticket_id, message, category)` must not
+repeat — without `UNIQUE` a second run of the same file inserts everything again
+(breaks idempotency, decision 5).
+→ **My conclusion (checked in TablePlus):** all three columns go into `UNIQUE`.
+- same row twice → `UNIQUE constraint failed` ✔ (protects re-processing)
+- same id + text, other category → inserted ✔ (multi-label)
+- other id, same text + category → inserted ✔; with `UNIQUE(message, category)` the second customer would be lost.
+
+**Fixed version** (created via Python REPL from the project root, `sqlite3.connect("output/tickets.db")`):
+```sql
+CREATE TABLE IF NOT EXISTS messages (ticket_id TEXT, message TEXT, category TEXT, UNIQUE(ticket_id, message, category))
+```
+Then `conn.commit()`, `conn.close()`. First attempt missed the `( ... )` around the column list.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-12 — `storage.py`: first function `db_creator(db_path)`
+
+**What I asked:** the DB must be created by the program, because `*.db` is not in git and a reviewer
+who clones the repo needs their own DB.
+
+**What AI did:** reviewed my code, did not write it (gave a generic example + fill-in hints).
+
+**Review findings on my first version:**
+1. Path was hard-coded (`"output/tickets.db"`) → now a parameter `db_path`
+   (tests use `":memory:"` / `tmp_path`, CLI will pass `--db`).
+2. `conn.close()` + `return 1` → the connection is needed for inserts later → now `return conn`.
+   With `close()` the caller gets `sqlite3.ProgrammingError: Cannot operate on a closed database`.
+3. I first pasted the generic example (`open_log`) into the project literally — it was only an illustration.
+4. Minor: indentation uses tabs; PEP 8 recommends 4 spaces.
+
+**Checked:** `db_creator(":memory:")` → `SELECT * FROM messages` returns `[]` (table exists, empty).
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-12 — `db_creator`: create the folder if it is missing
+
+**Problem:** the reviewer clones the repo without `output/` contents →
+`sqlite3.connect("nofolder/test.db")` → `sqlite3.OperationalError: unable to open database file`.
+SQLite creates the **file**, but not the **folder**.
+
+**Fix (mine):** `Path(db_path).parent.mkdir(parents=True, exist_ok=True)` before `connect`.
+
+**Mistakes on the way:**
+- `Path(db_path, "/output/")` → a part starting with `/` is absolute and **replaces** everything before it
+  → result `\output`, `.parent` = `\` (drive root); the needed folder was never created.
+- `db_path = "output/tickets.db"` inside the function → overwrote the parameter; every call
+  (even `":memory:"`) wrote to the real DB.
+
+**Learned:** `Path` only holds a string; a relative path is resolved from the folder where `python`
+was started, at the moment of `mkdir` / `connect`.
+
+**Checked:** in an empty folder `db_creator("nofolder/test.db")` creates `nofolder/test.db`, table exists;
+`db_creator(":memory:")` works.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-12 — Where is the DB path decided?
+
+**Question:** if a reviewer runs the program from the root, where is the DB created? Should
+`db_creator` have a default path so the user doesn't need to type it?
+
+**AI explained:** `db_creator` only knows *how* to create the DB; *where* is decided by the caller.
+`cli.py` will have `--db` with a default (e.g. `output/tickets.db`), so the user never has to type it.
+A default inside the function is also possible, but then: keep the default in **one** place only,
+and a test that forgets `":memory:"` would silently write to the real DB.
+
+**My decision:** no default in `db_creator(db_path)` — the path is always passed in;
+the default lives in `cli.py` (`--db`, task 07).
+
+**Verified by me:** _TODO_
