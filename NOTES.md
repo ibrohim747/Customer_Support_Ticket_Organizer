@@ -311,3 +311,29 @@ row 14 skipped as duplicate of row 8, row 15 (T0026 follow-up) accepted — matc
 Follows the rules, but worth mentioning.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 05: `storage.py` — saving messages
+
+**What Claude wrote:** `save_messages(conn, records)` → `(saved, skipped)`; `count_per_category(conn)`;
+`count_messages(conn)`. `db_creator` unchanged except tabs → 4 spaces. 9 tests in `tests/test_storage.py`
+(in-memory DB).
+
+**Decisions (to explain at the demo):**
+- **Skipped once per message:** `SELECT 1 ... WHERE ticket_id = ? AND message = ?` before inserting.
+  If found → the whole message is skipped and reported once (`"already in database"`), even with 2 categories.
+  Chosen over `INSERT OR IGNORE` + `rowcount`: there a 2-category message gives 2 ignored inserts that would
+  have to be merged back into one "skipped".
+- **One row per category:** `executemany` with one `(ticket_id, message, category)` per category.
+- **Transaction:** the whole `save_messages` call runs in `with conn:` → commit at the end, rollback on error.
+  No half-saved message and no half-saved file; after a crash simply run again (idempotent).
+- **Count messages, not rows:** SQLite has no `COUNT(DISTINCT a, b)` → `SELECT COUNT(*) FROM (SELECT DISTINCT ticket_id, message ...)`.
+- **`?` placeholders only:** an f-string would put user text into the SQL itself (SQL injection).
+  Test stores `x'); DROP TABLE messages; --` as plain text.
+
+**Checked:** `python -m ticket_organizer.storage` twice on a fresh `output/tickets.db`:
+run 1 → saved 14; run 2 → saved 0, already in DB 14; DB content the same (14 messages,
+Account 4, Billing 4, Other 4, Technical 3 — sum 15 > 14 because T0147 has 2 categories). pytest: 32 passed.
+
+**Verified by me:** _TODO_
