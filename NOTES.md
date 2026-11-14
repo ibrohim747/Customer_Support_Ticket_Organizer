@@ -249,3 +249,13 @@ printed twice); absolute path → `data/sample_tickets.csv`. Run it with `python
 duplicates; tests. Also convert tabs → spaces in `storage.py`.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 03: `validation` splits rows into valid / rejected
+
+**What Claude wrote:** `validation(rows)` now returns `(valid, rejected)` — two lists of dicts
+`{"row", "ticket_id", "message"}`; rejected ones also have `"reason"` (`empty ticket_id` / `empty message`).
+`None` (row shorter than the header) is treated as empty. Tests: `tests/test_reader.py` (6 tests).
+
+**Verified by me:** _TODO_

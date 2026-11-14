@@ -19,13 +19,33 @@ def read_csv(file_path):
 
 
 def validation(rows):
+    valid = []
+    rejected = []
+    # Line 1 of the file is the header, so the first data row is line 2.
     for row_number, row in enumerate(rows, start=2):
-        ticket_id = row['ticket_id'].strip()
-        message = row['message'].strip()
-        print(f"Row {row_number}: ticket_id = {ticket_id}, message = {message}")
-    return rows
+        # A short row gives None instead of "" -> "or ''" turns it into "".
+        ticket_id = (row["ticket_id"] or "").strip()
+        message = (row["message"] or "").strip()
+
+        if ticket_id == "":
+            reason = "empty ticket_id"
+        elif message == "":
+            reason = "empty message"
+        else:
+            reason = None
+
+        record = {"row": row_number, "ticket_id": ticket_id, "message": message}
+        if reason is None:
+            valid.append(record)
+        else:
+            record["reason"] = reason
+            rejected.append(record)
+    return valid, rejected
 
 
 if __name__ == "__main__":
     res = read_csv("data/sample_tickets.csv")
-    validation(res)
+    valid, rejected = validation(res)
+    print(f"valid: {len(valid)}, rejected: {len(rejected)}")
+    for record in rejected:
+        print(record)
