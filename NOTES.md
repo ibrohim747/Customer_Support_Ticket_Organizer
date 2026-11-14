@@ -1,8 +1,35 @@
 # NOTES — AI usage log
 
-AI (Claude) is used as a mentor/reviewer, not as the author of the code.
+AI (Claude) was used as a mentor/reviewer for tasks 01–03 (I wrote the code) and as the author of
+the code and tests for tasks 03 (duplicates) – 08, which I ran, checked and must be able to explain.
+Each entry says who wrote what (see "Summary (for reviewers)" below).
 Entries are drafted by Claude from our conversations; I review each one and fill in
 **Verified by me** myself.
+
+---
+
+## Summary (for reviewers)
+
+**How AI was used:**
+- Days 1–2 (tasks 01–03): mentor / reviewer. I wrote the code (`db_creator`, `read_csv`, first validation),
+  Claude reviewed it and explained mistakes; design decisions (one table, `UNIQUE` on all three columns,
+  DB path decided by the caller) were mine after discussion.
+- Tasks 03 (duplicates) – 08: short on time, Claude wrote the code and tests; I ran them, checked the
+  results against my own expected labels (`data/sample_tickets_labels.csv`, task 02) and must be able to
+  explain every decision (listed in each entry below).
+- Every entry says who wrote what; **Verified by me** is filled in by me only.
+
+**Concrete example of verifying AI output:** for the categorizer and the full run I compared the program's
+result with the expected results I wrote myself before the code existed: 19 rows = 14 accepted + 4 rejected
++ 1 skipped, and every category matched. The only difference was row 7 (`Account|Billing` vs `Billing|Account`
+in my file) — only the order, caused by the "alphabetical order" decision. I also ran `pytest` myself in my own
+`.venv` (12 passed after task 03, 62 after task 08).
+
+**A real problem and how I solved it:** `pytest` → `ModuleNotFoundError: No module named 'ticket_organizer'`.
+Plain `pytest` puts the `tests/` folder on `sys.path`, not the project root, so the package was not found.
+Fixed with `pytest.ini` → `pythonpath = .`. Later on a second (Linux) machine `pytest` was "not found" —
+the `.venv` from Windows does not work on Linux (it contains `Scripts\*.exe` and `C:\Python312` paths),
+so I created a new `.venv` there and learned that activation is needed in every new terminal.
 
 ---
 
@@ -414,5 +441,22 @@ pytest: 62 passed.
 
 **Not used yet:** `tests/fixtures/golden_tickets.csv` + `golden_expected.csv` — the expected columns
 (`outcome`, `categories`, `reason`) are still empty. Either I fill them and a test compares, or delete the fixtures.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 09: README & NOTES
+
+**What Claude did:** rewrote `README.md`: what it does, setup (+ `python3` / `python3-venv` note for Linux),
+usage with example output and options table, input file format, validation, categorization rules
+and multi-category decision, duplicates / re-processing, database schema and why, summary,
+assumptions & limitations, running tests, project structure. Added "Summary (for reviewers)" at the top of NOTES.
+
+**Checked:** cloned the repo into an empty folder, followed README step by step (`venv` → `pip install` →
+`pytest` → run): 62 passed, program runs, exit 0. Example output and the limitation examples
+("bank statement ... debits" → Other, "Any update?" → Technical) were run, not invented.
+Note: the clean-folder test cloned the **local** repo, because the latest commits were not pushed yet —
+after `git push` I should repeat it from GitHub.
 
 **Verified by me:** _TODO_

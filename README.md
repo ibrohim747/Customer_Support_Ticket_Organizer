@@ -1,7 +1,8 @@
 # Customer Support Ticket Organizer
 
-Reads customer messages from a CSV file, validates them, assigns categories by keyword rules,
-stores them in SQLite and writes a summary.
+Reads customer messages from a CSV file, rejects broken rows, skips duplicates,
+assigns one or more categories (Billing, Account, Technical, Other) by keyword rules,
+stores the messages in an SQLite database and writes a summary.
 
 ## Setup
 
@@ -13,16 +14,18 @@ cd Customer_Support_Ticket_Organizer
 python -m venv .venv
 ```
 
-Activate the virtual environment:
+On Linux / macOS the command may be `python3` instead of `python`. On Debian / Ubuntu,
+if `venv` is missing, install it first: `sudo apt install python3-venv`.
+
+Activate the virtual environment (needed in every new terminal):
 
 - Windows (PowerShell): `.venv\Scripts\Activate.ps1`
 - macOS / Linux: `source .venv/bin/activate`
 
-Install dependencies and run the tests:
+Install dependencies:
 
 ```
 pip install -r requirements.txt
-pytest
 ```
 
 ## Usage
@@ -33,21 +36,134 @@ Run from the project root with the virtual environment activated:
 python -m ticket_organizer data/sample_tickets.csv
 ```
 
-Options (all optional): `--db` (default `output/tickets.db`), `--summary` (default
-`output/summary.json`), `--rejected` (default `output/rejected.csv`).
-See `python -m ticket_organizer --help`.
+Example output:
+
+```
+Rows read:  19
+Accepted:   14
+Rejected:   4
+Skipped:    1 (duplicate in file: 1, already in DB: 0)
+
+Categories (this run):
+  Account    4
+  Billing    4
+  Other      4
+  Technical  3
+...
+```
+
+Options (all optional):
+
+| Option | Default | What it is |
+|---|---|---|
+| `--db` | `output/tickets.db` | SQLite database, created if missing |
+| `--summary` | `output/summary.json` | summary of the run as JSON |
+| `--rejected` | `output/rejected.csv` | rejected rows: `row, ticket_id, message, reason` |
+
+Example with options:
+
+```
+python -m ticket_organizer my_tickets.csv --db output/test.db --summary output/test_summary.json
+```
+
+`python -m ticket_organizer --help` shows the same information.
 
 Exit code: `0` on success, `1` if the input file cannot be processed
 (not found, not a `.csv`, missing `ticket_id` / `message` column, not UTF-8),
 `2` if the command line is wrong.
 
+## Input file
+
+- CSV, UTF-8 (with or without BOM — "CSV UTF-8" from Excel works).
+- The header must contain `ticket_id` and `message`. Other columns and column order do not matter.
+- If a required column is missing, the whole file is refused with an error.
+
+## Validation
+
+- Values are stripped of spaces at the start and end.
+- Empty `ticket_id` or empty `message` (also only spaces) → the row is **rejected**,
+  saved to `rejected.csv` with its row number and reason. A bad row never stops the program.
+- Row numbers are the line numbers in the file (the header is row 1), the same as in Excel.
+
+## Categorization
+
+- Keyword rules are data, not code: `keywords/<category>.txt`, one keyword or phrase per line,
+  `#` for comments. The file name is the category name.
+- Matching ignores case and works on **whole words / phrases**:
+  "I was charged" matches because `charged` is in the list, but `charge` does not match inside "discharge".
+- Word forms and common typos are listed in the keyword files (no stemming).
+- A message gets **all** matching categories (e.g. "I was charged twice and can't log in" →
+  Account + Billing). No match → `Other`.
+- Categories are returned in alphabetical order, so the result is always the same.
+- To add a category, add a new `keywords/<name>.txt` file. No code changes.
+
+## Duplicates and re-processing
+
+- **Exact duplicate inside the file** (same `ticket_id` **and** same `message` after stripping) → skipped.
+- **Same `ticket_id` with a different message** → accepted, treated as a follow-up of the same ticket.
+- **Message already in the database** (from an earlier run) → skipped.
+  Running the same file twice gives the same database; the second run reports every message as skipped.
+- One file is saved in one transaction: if the program fails halfway, nothing from that file is saved,
+  and it can simply be run again.
+
+## Database
+
+One table:
+
+```sql
+messages (ticket_id TEXT, message TEXT, category TEXT, UNIQUE(ticket_id, message, category))
+```
+
+One row per (message, category): a message with two categories is stored as two rows.
+This keeps the insert code simple; the cost is that the message text repeats per category.
+For a large database, two tables (`messages` + `message_categories`) would be better.
+
 ## Summary
 
 After each run the program prints a summary and saves it to `output/summary.json`;
-rejected rows (row number, ticket_id, message, reason) go to `output/rejected.csv`.
+rejected rows go to `output/rejected.csv`.
 
-- `rows_read = accepted + rejected + skipped`, counted per message.
+- `rows_read = accepted + rejected + skipped`, counted per message (not per database row).
+  The program checks this and stops with an error if the numbers do not add up.
 - `skipped` = exact duplicates inside the file + messages already saved by an earlier run.
 - Category counts are shown twice: for **this run** (messages saved now) and for the
   **whole database**. A message can have several categories, so the category sum can be
   bigger than the number of accepted messages.
+
+## Assumptions and limitations
+
+- Messages are in **English**; keywords are English only.
+- Keyword matching does not understand meaning: synonyms that are not in the lists are missed
+  ("my bank statement shows two debits" → Other), and a keyword in an unrelated sense still matches
+  ("Any update?" → Technical, because `update` is a Technical keyword).
+- Only typos listed in the keyword files are recognized.
+- Duplicate check is exact and case-sensitive: "Hello" and "hello" are different messages.
+- The whole file is read into memory — fine for thousands of rows, not for very large files.
+
+## Running the tests
+
+With the virtual environment activated, from the project root:
+
+```
+pytest
+```
+
+Useful variants: `pytest -v` (one line per test), `pytest tests/test_reader.py` (one file),
+`pytest -k duplicate` (tests whose name contains "duplicate").
+
+## Project structure
+
+```
+ticket_organizer/   program code
+  reader.py         read the CSV, validate rows, remove duplicates inside the file
+  categorizer.py    keyword rules -> categories
+  storage.py        SQLite: save messages, count per category
+  summary.py        build / print / save the summary and rejected.csv
+  cli.py            command line (argparse), runs all steps
+  __main__.py       makes `python -m ticket_organizer` work
+keywords/           keyword rules, one file per category
+data/               sample input (sample_tickets.csv) and its expected results
+tests/              pytest tests
+output/             generated files (database, summary, rejected rows) — not in git
+NOTES.md            development notes and how AI was used
+```
