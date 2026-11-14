@@ -286,3 +286,28 @@ row 14 skipped as duplicate of row 8, row 15 (T0026 follow-up) accepted — matc
 **Open question for me:** is the comparison case-sensitive on purpose? `"Hello"` vs `"hello"` is now *not* a duplicate.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 04: `categorizer.py`
+
+**What Claude wrote:** `load_rules()` reads `keywords/<category>.txt` (file name = category,
+`#` comments and empty lines skipped) → `compile_rules()` builds one case-insensitive regex per category →
+`categorize(message)` returns all matching categories, no match → `["Other"]`.
+11 tests in `tests/test_categorizer.py`.
+
+**Decisions (to explain at the demo):**
+- **Whole word, not substring:** `"charge" in text` would match `discharge` → wrong Billing.
+  Regex `(?<!\w)keyword(?!\w)` (like `\b`, but also safe for keywords starting/ending with a non-letter).
+- **Word forms:** no stemming — `charged`, `charges`, typos are listed in the keyword files.
+- **Stable order:** categories sorted by file name → `["Account", "Billing"]`, not the order of words in the text.
+  Tests compare lists, so a random order would make them flaky.
+
+**Checked:** `python -m ticket_organizer.categorizer` on `data/sample_tickets.csv` → all categories match
+`sample_tickets_labels.csv`. Only difference: row 7 is `Account|Billing` here vs `Billing|Account` in the labels
+(order only) → I should update the labels file. pytest: 23 passed.
+
+**Known effect:** `"Any update? I still cannot log in."` → `Account, Technical` (`update` is a Technical keyword).
+Follows the rules, but worth mentioning.
+
+**Verified by me:** _TODO_
