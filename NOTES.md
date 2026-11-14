@@ -200,3 +200,52 @@ I ran myself in task 01.
 (task 01 "Done when").
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-13 — Task 02: sample CSV generated with AI, then reduced
+
+**What I did:** generated `data/sample_tickets.csv` (200 rows) and `data/sample_tickets_labels.csv`
+with an AI tool.
+
+**Review findings (Claude):**
+- Labels were "intended" (what a human thinks), not "expected by the keyword rules".
+  Checked with whole-word matching against `keywords/`: 29 rows differ
+  (e.g. `T0004` "Search results are empty" → no keyword → Other; follow-up "Any update on this?" →
+  `update` is a Technical keyword → Technical).
+- No separate status column: duplicates were labeled as a category, "skipped" only in a note.
+- 200 rows is too many to explain at the demo; the task asks for ~15–20.
+
+**My decision:** reduce to ~20 rows, one row per test case, and write the expected result myself.
+
+**Then:** to save time, Claude cut the CSV to 19 rows (one per test case, chosen from the 200)
+and created an empty labels file (`row, ticket_id, status, categories, note`).
+I fill `status` and `categories` myself, using the rules in `keywords/`.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-13 — Task 03: `read_csv` + first `validation` loop (in progress)
+
+**What I wrote:** `read_csv(file_path)` (extension / exists / empty checks, `utf-8-sig`, `DictReader`,
+header check) and a first `validation(rows)` loop that strips values and prints them with row numbers.
+
+**Review findings (Claude):**
+- Missing `import os` → `NameError`; no `encoding=` → Windows default codepage, BOM stays in `'\ufeffticket_id'`.
+- Header was compared as a whole string (`readlines() == "ticket_id,message\n"`): list vs string is always
+  `False`, and any space / column order / extra column breaks it → use `'ticket_id' in reader.fieldnames`.
+- `TabError`: tabs and spaces mixed → converted `reader.py` to 4 spaces (PEP 8).
+- `enumerate` returns `(index, item)` pairs → must unpack: `for row_number, row in enumerate(...)`.
+- Row number: the header is line 1 and `DictReader` consumes it → `start=2` (matches Excel and my labels file).
+- Checked on test files: header only → `[]`; wrong columns → `Missing column: ticket_id`;
+  reordered + extra column → OK; BOM file → OK.
+
+**Small fixes applied by Claude (I was short on time):** renamed `objects` → `row`; wrapped the manual
+check call in `if __name__ == "__main__":` (code at module level runs on every `import`, so the output was
+printed twice); absolute path → `data/sample_tickets.csv`. Run it with `python -m ticket_organizer.reader`.
+
+**Still to do (me):** split rows into valid / rejected with row number + reason; handle `None` values;
+duplicates; tests. Also convert tabs → spaces in `storage.py`.
+
+**Verified by me:** _TODO_

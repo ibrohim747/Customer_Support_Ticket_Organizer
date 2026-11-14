@@ -23,7 +23,7 @@ def validation(rows):
         ticket_id = row['ticket_id'].strip()
         message = row['message'].strip()
         print(f"Row {row_number}: ticket_id = {ticket_id}, message = {message}")
-    return ticket_id, message
+    return rows
 
 
 if __name__ == "__main__":
