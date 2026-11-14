@@ -45,9 +45,27 @@ def validation(rows):
     return valid, rejected
 
 
+def remove_duplicates(valid):
+    # Duplicate = same ticket_id AND same message (after strip).
+    # Same id + different message is a follow-up -> kept.
+    unique = []
+    skipped = []
+    first_row = {}  # (ticket_id, message) -> row number where it was first seen
+    for record in valid:
+        key = (record["ticket_id"], record["message"])
+        if key in first_row:
+            skipped.append({**record, "reason": f"duplicate of row {first_row[key]}"})
+        else:
+            first_row[key] = record["row"]
+            unique.append(record)
+    return unique, skipped
+
+
 if __name__ == "__main__":
     res = read_csv("data/sample_tickets.csv")
     valid, rejected = validation(res)
-    print(f"valid: {len(valid)}, rejected: {len(rejected)}")
-    for record in rejected:
+    unique, skipped = remove_duplicates(valid)
+    print(f"read: {len(res)}, accepted: {len(unique)}, "
+          f"rejected: {len(rejected)}, skipped: {len(skipped)}")
+    for record in rejected + skipped:
         print(record)

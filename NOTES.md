@@ -267,3 +267,22 @@ Manual run on `data/sample_tickets.csv`: 15 valid + 4 rejected = 19 rows; rows 1
 as the last `elif` → it never ran (in `if/elif` only the first true branch runs) → moved it to the top.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 03: duplicates inside the file
+
+**What Claude wrote:** `remove_duplicates(valid)` in `reader.py` → returns `(unique, skipped)`.
+Duplicate = same `ticket_id` **and** same `message` after strip (decision 3). Skipped records get
+`"reason": "duplicate of row N"` (N = row where it was first seen). Uses a dict `(ticket_id, message) → row`
+as the "seen" set. Kept as a separate function, so `validation` and its tests did not change.
+4 new tests: exact duplicate, duplicate after strip, same id + other message (follow-up → kept),
+same message + other id (kept).
+
+**Checked:** `python -m ticket_organizer.reader` → read 19 = accepted 14 + rejected 4 + skipped 1;
+row 14 skipped as duplicate of row 8, row 15 (T0026 follow-up) accepted — matches `sample_tickets_labels.csv`.
+11 tests pass (run without pytest on Linux — pytest was not installed there).
+
+**Open question for me:** is the comparison case-sensitive on purpose? `"Hello"` vs `"hello"` is now *not* a duplicate.
+
+**Verified by me:** _TODO_

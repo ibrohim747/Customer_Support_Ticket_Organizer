@@ -1,4 +1,4 @@
-from ticket_organizer.reader import validation
+from ticket_organizer.reader import validation, remove_duplicates
 
 
 def test_good_row_is_valid():
@@ -46,3 +46,43 @@ def test_row_numbers_start_at_2_and_count_every_row():
 def test_both_empty_is_rejected_with_combined_reason():
     _, rejected = validation([{"ticket_id": " ", "message": ""}])
     assert rejected[0]["reason"] == "empty ticket_id and message"
+
+def test_exact_duplicate_is_skipped():
+    valid, _ = validation([
+        {"ticket_id": "T1", "message": "Hello"},
+        {"ticket_id": "T1", "message": "Hello"},
+    ])
+    unique, skipped = remove_duplicates(valid)
+    assert unique == [{"row": 2, "ticket_id": "T1", "message": "Hello"}]
+    assert skipped == [
+        {"row": 3, "ticket_id": "T1", "message": "Hello", "reason": "duplicate of row 2"}
+    ]
+
+
+def test_duplicate_after_strip_is_skipped():
+    valid, _ = validation([
+        {"ticket_id": "T1", "message": "Hello"},
+        {"ticket_id": " T1 ", "message": "  Hello "},
+    ])
+    _, skipped = remove_duplicates(valid)
+    assert [r["row"] for r in skipped] == [3]
+
+
+def test_same_id_different_message_is_follow_up():
+    valid, _ = validation([
+        {"ticket_id": "T1", "message": "Hello"},
+        {"ticket_id": "T1", "message": "Any update?"},
+    ])
+    unique, skipped = remove_duplicates(valid)
+    assert [r["row"] for r in unique] == [2, 3]
+    assert skipped == []
+
+
+def test_same_message_different_id_is_kept():
+    valid, _ = validation([
+        {"ticket_id": "T1", "message": "I can't log in"},
+        {"ticket_id": "T2", "message": "I can't log in"},
+    ])
+    unique, skipped = remove_duplicates(valid)
+    assert len(unique) == 2
+    assert skipped == []
