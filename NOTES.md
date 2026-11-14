@@ -258,4 +258,12 @@ duplicates; tests. Also convert tabs → spaces in `storage.py`.
 `{"row", "ticket_id", "message"}`; rejected ones also have `"reason"` (`empty ticket_id` / `empty message`).
 `None` (row shorter than the header) is treated as empty. Tests: `tests/test_reader.py` (6 tests).
 
+**Problems on the way:** `pytest` not found → venv not activated (`.venv\Scripts\Activate.ps1`).
+Then `ModuleNotFoundError: ticket_organizer` → plain `pytest` puts `tests/` on `sys.path`, not the project
+root → Claude added `pytest.ini` with `pythonpath = .`. Result: 6 passed.
+Manual run on `data/sample_tickets.csv`: 15 valid + 4 rejected = 19 rows; rows 10–13 checked against the file.
+
+**Change made by me:** added reason `empty ticket_id and message` + test (7 passed). First I put the check
+as the last `elif` → it never ran (in `if/elif` only the first true branch runs) → moved it to the top.
+
 **Verified by me:** _TODO_

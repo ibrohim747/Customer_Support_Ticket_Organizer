@@ -41,3 +41,8 @@ def test_row_numbers_start_at_2_and_count_every_row():
     valid, rejected = validation(rows)
     assert [r["row"] for r in valid] == [2, 4]
     assert rejected[0]["row"] == 3
+
+
+def test_both_empty_is_rejected_with_combined_reason():
+    _, rejected = validation([{"ticket_id": " ", "message": ""}])
+    assert rejected[0]["reason"] == "empty ticket_id and message"

@@ -27,7 +27,9 @@ def validation(rows):
         ticket_id = (row["ticket_id"] or "").strip()
         message = (row["message"] or "").strip()
 
-        if ticket_id == "":
+        if ticket_id == "" and message == "":
+            reason = "empty ticket_id and message"
+        elif ticket_id == "":
             reason = "empty ticket_id"
         elif message == "":
             reason = "empty message"
