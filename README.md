@@ -25,6 +25,22 @@ pip install -r requirements.txt
 pytest
 ```
 
+## Usage
+
+Run from the project root with the virtual environment activated:
+
+```
+python -m ticket_organizer data/sample_tickets.csv
+```
+
+Options (all optional): `--db` (default `output/tickets.db`), `--summary` (default
+`output/summary.json`), `--rejected` (default `output/rejected.csv`).
+See `python -m ticket_organizer --help`.
+
+Exit code: `0` on success, `1` if the input file cannot be processed
+(not found, not a `.csv`, missing `ticket_id` / `message` column, not UTF-8),
+`2` if the command line is wrong.
+
 ## Summary
 
 After each run the program prints a summary and saves it to `output/summary.json`;

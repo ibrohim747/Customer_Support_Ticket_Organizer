@@ -358,3 +358,29 @@ run 1 → 19 = 14 + 4 + 1 (matches `sample_tickets_labels.csv`); run 2 → 19 = 
 (duplicate in file 1, already in DB 14). `output/rejected.csv` has rows 10–13. pytest: 39 passed.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 07: CLI (`cli.py`, `__main__.py`)
+
+**What Claude wrote:** `cli.py` — `argparse` with required `csv_file` and optional `--db`, `--summary`,
+`--rejected` (defaults in `output/`); `process_file(csv_path, conn)` runs the whole pipeline;
+`main(argv)` returns the exit code. `__main__.py` → `python -m ticket_organizer` works.
+8 tests in `tests/test_cli.py` (incl. one that runs the real `python -m ticket_organizer` as a process).
+README: new "Usage" section.
+
+**Decisions (to explain at the demo):**
+- **Exit codes:** `0` success, `1` file could not be processed, `2` wrong command line (argparse default).
+  Scripts / CI check the exit code, not the text — a failed run must not look like success.
+- **No traceback for user errors:** `FileNotFoundError`, `ValueError` (bad extension / header),
+  `UnicodeDecodeError` (not UTF-8), `OSError`, `sqlite3.Error` → one line `Error: ...` on stderr.
+  Real bugs (other exceptions) still show a traceback — hiding them would make debugging harder.
+- **`main(argv=None)`:** tests pass a list instead of the real command line.
+
+**Checked by hand:** `--help`; `nope.csv` → `Error: The file nope.csv does not exist.`, exit 1;
+sample on a fresh DB → 19 = 14 + 4 + 1, exit 0. pytest: 47 passed.
+
+**Known small thing:** the DB file is created before the CSV is read, so a missing CSV still leaves an empty
+`output/tickets.db`.
+
+**Verified by me:** _TODO_
