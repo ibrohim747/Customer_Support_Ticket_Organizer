@@ -337,3 +337,24 @@ run 1 → saved 14; run 2 → saved 0, already in DB 14; DB content the same (14
 Account 4, Billing 4, Other 4, Technical 3 — sum 15 > 14 because T0147 has 2 categories). pytest: 32 passed.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 06: `summary.py`
+
+**What Claude wrote:** `build_summary(...)` → dict, `format_summary` (terminal text), `save_summary_json`,
+`save_rejected_csv` (`row, ticket_id, message, reason`, `utf-8-sig` for Excel). 7 tests in `tests/test_summary.py`.
+README: new "Summary" section.
+
+**Decisions (to explain at the demo):**
+- **Categories: this run or whole DB?** Both. "This run" alone shows all zeros on a re-run;
+  "whole DB" alone does not show what this file added.
+- **Invariant checked in code:** `build_summary` raises `ValueError` if
+  `rows_read != accepted + rejected + skipped` — a counting bug cannot silently produce a wrong report.
+- **JSON** for the summary file: easy to test (`json.loads(...) == summary`).
+
+**Checked:** `python -m ticket_organizer.summary` twice on a fresh DB:
+run 1 → 19 = 14 + 4 + 1 (matches `sample_tickets_labels.csv`); run 2 → 19 = 0 + 4 + 15
+(duplicate in file 1, already in DB 14). `output/rejected.csv` has rows 10–13. pytest: 39 passed.
+
+**Verified by me:** _TODO_
