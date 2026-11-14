@@ -384,3 +384,35 @@ sample on a fresh DB → 19 = 14 + 4 + 1, exit 0. pytest: 47 passed.
 `output/tickets.db`.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-14 — Task 08: test coverage check
+
+**What Claude did:** checked every requirement against the existing tests and added the missing ones:
+- `test_empty_or_only_spaces_message_is_rejected` — `parametrize` over `""`, spaces, tab, `None`;
+- `read_csv` tests in `test_reader.py` (rows, missing column ×2, extra/reordered columns, BOM, header only,
+  empty file, wrong extension, missing file) — before, the header check was tested only through the CLI;
+- `test_end_to_end_on_small_temp_csv` in `test_cli.py` — one row per case in a `tmp_path` CSV, checks
+  `summary.json`, DB rows and `rejected.csv`.
+
+**Requirement → test:**
+
+| Requirement | Test(s) |
+|---|---|
+| normal messages | `test_good_row_is_valid`, `test_billing`, `test_account`, `test_technical` |
+| empty messages / only spaces | `test_empty_message_is_rejected`, `test_empty_or_only_spaces_message_is_rejected`, `test_empty_ticket_id_is_rejected` |
+| exact duplicate skipped | `test_exact_duplicate_is_skipped`, `test_duplicate_after_strip_is_skipped` |
+| same id, other message accepted | `test_same_id_different_message_is_follow_up`, `test_same_id_different_message_is_saved` |
+| unknown category → Other | `test_no_match_is_other`, `test_discharge_is_not_billing` |
+| multiple categories | `test_multi_match_returns_all_in_stable_order`, `test_multi_category_message_is_two_rows` |
+| missing column | `test_read_csv_missing_column_raises`, `test_bad_header_gives_error_and_exit_1` |
+| re-running same file | `test_running_same_file_twice_gives_same_db`, `test_sample_second_run_skips_everything`, `test_second_run_skips_all_messages` |
+| end-to-end on temp CSV | `test_end_to_end_on_small_temp_csv` |
+
+pytest: 62 passed.
+
+**Not used yet:** `tests/fixtures/golden_tickets.csv` + `golden_expected.csv` — the expected columns
+(`outcome`, `categories`, `reason`) are still empty. Either I fill them and a test compares, or delete the fixtures.
+
+**Verified by me:** _TODO_

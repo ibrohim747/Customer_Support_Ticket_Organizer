@@ -1,4 +1,6 @@
-from ticket_organizer.reader import validation, remove_duplicates
+import pytest
+
+from ticket_organizer.reader import read_csv, remove_duplicates, validation
 
 
 def test_good_row_is_valid():
@@ -86,3 +88,66 @@ def test_same_message_different_id_is_kept():
     unique, skipped = remove_duplicates(valid)
     assert len(unique) == 2
     assert skipped == []
+
+
+@pytest.mark.parametrize("message", ["", " ", "     ", "\t", None])
+def test_empty_or_only_spaces_message_is_rejected(message):
+    valid, rejected = validation([{"ticket_id": "T1", "message": message}])
+    assert valid == []
+    assert rejected[0]["reason"] == "empty message"
+
+
+# --- read_csv: whole-file checks ---
+
+def write(tmp_path, text, name="t.csv", encoding="utf-8"):
+    path = tmp_path / name
+    path.write_text(text, encoding=encoding)
+    return str(path)
+
+
+def test_read_csv_returns_rows(tmp_path):
+    path = write(tmp_path, "ticket_id,message\nT1,Hello\nT2,Hi\n")
+    assert read_csv(path) == [
+        {"ticket_id": "T1", "message": "Hello"},
+        {"ticket_id": "T2", "message": "Hi"},
+    ]
+
+
+@pytest.mark.parametrize("header, missing", [
+    ("id,message", "ticket_id"),
+    ("ticket_id,text", "message"),
+])
+def test_read_csv_missing_column_raises(tmp_path, header, missing):
+    path = write(tmp_path, f"{header}\nT1,Hello\n")
+    with pytest.raises(ValueError, match=f"Missing column: {missing}"):
+        read_csv(path)
+
+
+def test_read_csv_extra_and_reordered_columns_are_ok(tmp_path):
+    path = write(tmp_path, "message,priority,ticket_id\nHello,high,T1\n")
+    assert read_csv(path)[0]["ticket_id"] == "T1"
+
+
+def test_read_csv_handles_bom(tmp_path):
+    # Excel saves "UTF-8 CSV" with a BOM; without utf-8-sig the header would be "﻿ticket_id".
+    path = write(tmp_path, "ticket_id,message\nT1,Hello\n", encoding="utf-8-sig")
+    assert read_csv(path)[0]["ticket_id"] == "T1"
+
+
+def test_read_csv_header_only_gives_no_rows(tmp_path):
+    assert read_csv(write(tmp_path, "ticket_id,message\n")) == []
+
+
+def test_read_csv_empty_file_raises(tmp_path):
+    with pytest.raises(ValueError, match="empty"):
+        read_csv(write(tmp_path, ""))
+
+
+def test_read_csv_not_csv_extension_raises(tmp_path):
+    with pytest.raises(ValueError, match="CSV"):
+        read_csv(write(tmp_path, "ticket_id,message\n", name="t.txt"))
+
+
+def test_read_csv_missing_file_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        read_csv(str(tmp_path / "nope.csv"))
