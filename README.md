@@ -72,6 +72,44 @@ Exit code: `0` on success, `1` if the input file cannot be processed
 (not found, not a `.csv`, missing `ticket_id` / `message` column, not UTF-8),
 `2` if the command line is wrong.
 
+## Docker
+
+Instead of a virtual environment the program can run in a Docker container
+(needs [Docker](https://docs.docker.com/get-docker/) installed).
+
+Build the image (from the project root):
+
+```
+docker build -t ticket-organizer .
+```
+
+Run on the sample file. `-v` connects the local `output/` folder to the container,
+so the database, summary and rejected rows stay on your computer after the container exits:
+
+```
+docker run --rm -v "$(pwd)/output:/app/output" ticket-organizer
+```
+
+Run on your own CSV — put it into a folder (here `input/`) and connect that folder too:
+
+```
+docker run --rm -v "$(pwd)/input:/app/input" -v "$(pwd)/output:/app/output" ticket-organizer input/my_tickets.csv
+```
+
+All options from [Usage](#usage) work the same way, e.g. `... ticket-organizer input/my_tickets.csv --db output/test.db`.
+
+Run the tests inside the container:
+
+```
+docker run --rm --entrypoint pytest ticket-organizer
+```
+
+Notes:
+- Windows PowerShell: write `${PWD}` instead of `$(pwd)`.
+- Linux: files in `output/` are created by `root`. Add `--user "$(id -u):$(id -g)"` after `docker run`
+  to create them as your user.
+- After changing the code or keyword files, run `docker build` again.
+
 ## Input file
 
 - CSV, UTF-8 (with or without BOM — "CSV UTF-8" from Excel works).
@@ -166,4 +204,5 @@ data/               sample input (sample_tickets.csv) and its expected results
 tests/              pytest tests
 output/             generated files (database, summary, rejected rows) — not in git
 NOTES.md            development notes and how AI was used
+Dockerfile          Docker image (see "Docker"); .dockerignore lists what is left out
 ```

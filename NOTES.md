@@ -460,3 +460,40 @@ Note: the clean-folder test cloned the **local** repo, because the latest commit
 after `git push` I should repeat it from GitHub.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-15 — Docker
+
+**What I asked:** run the project in a Docker container.
+
+**What Claude wrote:** `Dockerfile` (`python:3.12-slim`, install `requirements.txt` first for layer caching,
+then copy the project; `ENTRYPOINT python -m ticket_organizer`, default `CMD data/sample_tickets.csv`),
+`.dockerignore` (`.git`, `.venv`, `output`, caches, `CLAUDE.md`, `tasks`, `DEMO_PREP.md`),
+README section "Docker": build, run on the sample, run on own CSV, run tests, Windows / Linux notes.
+
+**Decisions (to explain at the demo):**
+- **Volume `-v .../output:/app/output`:** a container's files disappear with `--rm`; the volume keeps
+  the DB, summary and rejected rows on the host — and the DB keeps working across runs (re-processing skipped).
+- **`ENTRYPOINT` + `CMD`:** arguments after the image name replace only `CMD`, so
+  `docker run ticket-organizer input/x.csv --db ...` works like the normal CLI.
+- **Python 3.12:** same as my Windows machine.
+- **`.venv` not copied:** it is built for the host OS (Windows `.venv` does not even work on Linux);
+  the image installs its own packages.
+
+**Problems on the way (installing Docker on Ubuntu 26.04 "resolute"):**
+- `apt install ./docker-desktop-amd64.deb` → the file was never downloaded (and Docker Desktop is not needed).
+- `apt install docker-ce ...` → not found: those packages are in Docker's own repository, which was not added.
+  Installed Ubuntu's own package instead: `sudo apt install docker.io docker-buildx`.
+- `permission denied ... /var/run/docker.sock` → I was added to the `docker` group, but the open terminal
+  still had the old groups (`id` did not show `docker`). Fixed with `newgrp docker` (or log out / in).
+
+**Checked (by me, in my terminal):**
+- `docker build -t ticket-organizer .` → built (Python 3.12.16 inside).
+- `docker run --rm --entrypoint pytest ticket-organizer` → 62 passed.
+- `docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)/output:/app/output" ticket-organizer` →
+  19 = 0 + 4 + 15 (already in DB: 14): the container used the **existing** `output/tickets.db` from an earlier
+  run — proves the volume works. `output/` files are owned by me, not root (because of `--user`).
+- `docker run --rm ticket-organizer nope.csv` → `Error: The file nope.csv does not exist.`, exit 1.
+
+**Verified by me:** _TODO_

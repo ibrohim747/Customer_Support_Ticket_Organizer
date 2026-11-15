@@ -1,0 +1,10 @@
+# Not needed inside the image (smaller image, no local/private files).
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+output
+CLAUDE.md
+tasks
+DEMO_PREP.md
