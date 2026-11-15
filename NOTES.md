@@ -552,3 +552,80 @@ Clear messages when Docker is not usable or no Python 3.10+ is found.
 - `./start.sh --docker` with input from a pipe (no keyboard) → "Interactive mode needs a terminal", exit 1.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Bug from my own test: dragged file path in interactive mode
+
+**What happened (my test from a fresh clone):** I dragged a file from outside the project into the terminal →
+the path came with quotes and a trailing space: `'/home/.../for_test/golden_tickets.csv' ` →
+`Error: The file must be a CSV file.` (the path ended with `'`, not `.csv`).
+Second problem behind it: in Docker the container sees only the project's `input/` folder,
+so a file elsewhere on the computer can never be found there.
+
+**What Claude changed:**
+- `interactive.clean_path()` strips spaces and one pair of surrounding quotes from a typed / dragged path.
+- `Dockerfile` sets `IN_DOCKER=1`; when a file is not found in Docker, the program explains that only
+  `input/` is visible and how to copy the file there. Without Docker (Python mode) any path works.
+- `read_csv`: message now names the file (`Not a .csv file: ...`), and `.CSV` in capitals is accepted.
+- Tests: `clean_path` (5 cases), dragged path is read, hint shown only in Docker, uppercase `.CSV`. pytest: 88 passed.
+
+**Checked by Claude in Docker (real terminal via `script`):** quoted path to a file outside the project →
+`does not exist` + the `input/` hint (no more "must be a CSV file"); after `cp` into `input/` the file appears
+in the menu as `1) input/golden_tickets.csv` and the preliminary analysis runs (20 rows, 16 to save, 3 rejected,
+1 duplicate).
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — "drag and drop a file here"
+
+**What I asked:** add "or drag and drop a file here" to the start text.
+
+**Problem Claude pointed out first:** in Docker that text would be a lie — the container saw only `input/`,
+so a dragged file from elsewhere could never be found.
+
+**What Claude changed:**
+- `start.sh` mounts the home folder **read only** at the same path (`-v "$HOME:$HOME:ro"`): a dragged
+  `/home/me/...` path exists inside the container too. `:ro` → the program cannot change anything there;
+  it still writes only to `output/`. Files outside the home folder (e.g. a USB stick in `/media`) are still
+  not visible → the Docker hint now says "home folder and input/".
+- Start text: "...into the input/ folder, or drag and drop a CSV file into this window when asked for a file."
+  File prompt: `File number, or drag and drop a file here [1]:`.
+- Test checks both texts (the prompt goes to `ask`, not to the output — the first version of the test checked
+  the output and failed). pytest: 89 passed. README step 1 updated.
+
+**Checked by Claude in Docker (real terminal via `script`):** dragged
+`'/home/ibrohim/Рабочий стол/Dev/for_test/golden_tickets.csv' ` (quotes, space, Cyrillic) → read inside the
+container: 20 rows, 16 to save, 3 rejected, 1 duplicate.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Ask where to save the results
+
+**What I asked:** before saving, ask "save the result next to the file, or choose another place (Y/n)".
+
+**What Claude changed:**
+- After "Run the full analysis…? [Y/n]" a new question: `Save the results next to the file (<folder>/)? [Y/n]`.
+  `n` → `Folder for the results (Enter = output/, drag and drop works):` — quotes from drag and drop are removed,
+  a missing folder is created.
+- Files are named after the CSV: `<name>_summary.json`, `<name>_rejected.csv` — results of different files
+  do not overwrite each other.
+- If the file's folder is not writable (e.g. `data/` inside the Docker image), the program says so and asks for a
+  folder right away.
+- **The database stays in `output/tickets.db`:** it is shared by all runs; with one DB per folder the
+  "already in database" check would not work across files.
+- `start.sh`: home folder is now mounted **with write access** (was read only) — needed to save next to a
+  dragged file. Still `--user`, so the program can write only where I myself can.
+- Tests: 3 new (another folder via dragged path with quotes, Enter = `output/`, not writable folder);
+  old scenarios got the extra answer. pytest: 92 passed. README steps 3–5 updated.
+
+**Checked by Claude in Docker (real terminal via `script`, with a temporary folder as `$HOME` so my real home
+was not touched):** dragged file → Y → `golden_tickets_summary.json` + `golden_tickets_rejected.csv` next to it,
+owned by me; sample `data/sample_tickets.csv` → "Cannot save next to the file: data/ is not writable here." →
+Enter → saved to `output/`.
+
+**Verified by me:** _TODO_

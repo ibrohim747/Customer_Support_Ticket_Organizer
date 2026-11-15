@@ -6,6 +6,7 @@ import pytest
 from ticket_organizer.interactive import (
     ask_yes_no,
     choose_file,
+    clean_path,
     find_csv_files,
     run_interactive,
 )
@@ -80,16 +81,19 @@ def test_choose_file_accepts_a_typed_path(project):
 
 
 def test_preliminary_then_full_analysis(project, args, capsys):
-    # file 1 -> full analysis: yes -> another file: no
-    assert run_interactive(args, answers("1", "y", "n")) == 0
+    # file 1 -> full analysis: yes -> save next to the file: Enter (yes) -> another file: no
+    assert run_interactive(args, answers("1", "y", "", "n")) == 0
     out = capsys.readouterr().out
     assert "Preliminary analysis: input/tickets.csv" in out
     assert "Will be saved:       2" in out
     assert "row 4: empty ticket_id" in out
     assert "Full analysis" in out and "Done." in out
-    summary = json.loads((project / "output" / "summary.json").read_text(encoding="utf-8"))
+    # saved next to the CSV, named after it; the database stays in output/
+    summary = json.loads((project / "input" / "tickets_summary.json").read_text(encoding="utf-8"))
     assert summary["accepted"] == 2
     assert summary["rows_read"] == 4
+    assert (project / "input" / "tickets_rejected.csv").exists()
+    assert (project / "output" / "tickets.db").exists()
 
 
 def test_answer_no_saves_nothing(project, args, capsys):
@@ -100,7 +104,7 @@ def test_answer_no_saves_nothing(project, args, capsys):
 
 def test_second_file_shows_already_in_database(project, args, capsys):
     # first pass saves the file, second pass on the same file: preliminary shows it is already there
-    run_interactive(args, answers("1", "y", "y", "1", "n", "n"))
+    run_interactive(args, answers("1", "y", "", "y", "1", "n", "n"))
     out = capsys.readouterr().out
     assert "Already in database: 2" in out
     assert "Will be saved:       0" in out
@@ -121,3 +125,76 @@ def test_ctrl_c_stops(project, args, capsys):
 
     assert run_interactive(args, ctrl_c) == 1
     assert "Stopped." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("typed, expected", [
+    ("input/t.csv", "input/t.csv"),
+    ("  input/t.csv  ", "input/t.csv"),
+    ("'/home/me/My Files/t.csv' ", "/home/me/My Files/t.csv"),  # dragged into the terminal
+    ('"C:\\Users\\me\\t.csv"', "C:\\Users\\me\\t.csv"),
+    ("'only-one-quote.csv", "'only-one-quote.csv"),
+])
+def test_clean_path_removes_spaces_and_quotes(typed, expected):
+    assert clean_path(typed) == expected
+
+
+def test_dragged_path_with_quotes_is_read(project, args, capsys):
+    path = str(project / "input" / "tickets.csv")
+    assert run_interactive(args, answers(f"'{path}' ", "n", "n")) == 0
+    assert "Rows in file:        4" in capsys.readouterr().out
+
+
+def test_missing_file_in_docker_shows_hint(project, args, capsys, monkeypatch):
+    monkeypatch.setenv("IN_DOCKER", "1")
+    run_interactive(args, answers("/home/me/elsewhere.csv", "n"))
+    out = capsys.readouterr().out
+    assert "does not exist" in out
+    assert "only files in your home folder and the project's input/ folder" in out
+
+
+def test_missing_file_without_docker_has_no_hint(project, args, capsys, monkeypatch):
+    monkeypatch.delenv("IN_DOCKER", raising=False)
+    run_interactive(args, answers("/home/me/elsewhere.csv", "n"))
+    assert "input/ folder are visible" not in capsys.readouterr().out
+
+
+def test_start_text_mentions_drag_and_drop(project, args, capsys):
+    prompts = []  # the questions the program asked (they go to `ask`, not to the output)
+    replies = iter(["1", "n", "n"])
+
+    def ask(prompt):
+        prompts.append(prompt)
+        return next(replies)
+
+    run_interactive(args, ask)
+    assert "drag and drop a CSV file into this window" in capsys.readouterr().out
+    assert "drag and drop a file here" in prompts[0]
+
+
+def test_save_to_another_folder(project, args, capsys):
+    # full analysis: yes -> next to the file: n -> folder typed (dragged, with quotes) -> another file: no
+    target = project / "results here"
+    run_interactive(args, answers("1", "y", "n", f"'{target}' ", "n"))
+    assert (target / "tickets_summary.json").exists()
+    assert (target / "tickets_rejected.csv").exists()
+    assert not (project / "input" / "tickets_summary.json").exists()
+
+
+def test_enter_for_folder_uses_output(project, args):
+    run_interactive(args, answers("1", "y", "n", "", "n"))
+    assert (project / "output" / "tickets_summary.json").exists()
+
+
+def test_not_writable_folder_asks_for_another(project, args, capsys):
+    read_only = project / "read_only"
+    read_only.mkdir()
+    (read_only / "t.csv").write_text("ticket_id,message\nT1,Hello\n", encoding="utf-8")
+    read_only.chmod(0o555)  # nobody may write here
+    try:
+        # path to the file -> full: yes -> (next to the file is impossible) -> Enter = output/ -> no
+        run_interactive(args, answers(str(read_only / "t.csv"), "y", "", "n"))
+    finally:
+        read_only.chmod(0o755)
+    out = capsys.readouterr().out
+    assert "is not writable here" in out
+    assert (project / "output" / "t_summary.json").exists()

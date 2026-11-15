@@ -144,10 +144,15 @@ def test_read_csv_empty_file_raises(tmp_path):
 
 
 def test_read_csv_not_csv_extension_raises(tmp_path):
-    with pytest.raises(ValueError, match="CSV"):
+    with pytest.raises(ValueError, match=r"Not a \.csv file"):
         read_csv(write(tmp_path, "ticket_id,message\n", name="t.txt"))
 
 
 def test_read_csv_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         read_csv(str(tmp_path / "nope.csv"))
+
+
+def test_read_csv_uppercase_extension_is_ok(tmp_path):
+    path = write(tmp_path, "ticket_id,message\nT1,Hello\n", name="T.CSV")
+    assert read_csv(path)[0]["ticket_id"] == "T1"

@@ -2,8 +2,8 @@ import os
 import csv
 
 def read_csv(file_path):
-    if not file_path.endswith('.csv'):
-        raise ValueError("The file must be a CSV file.")
+    if not file_path.lower().endswith('.csv'):
+        raise ValueError(f"Not a .csv file: {file_path}")
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"The file {file_path} does not exist.")
     if os.path.getsize(file_path) == 0:

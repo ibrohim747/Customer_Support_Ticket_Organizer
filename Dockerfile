@@ -4,8 +4,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # No .pyc files inside the image; print output immediately (no buffering).
+# IN_DOCKER: lets the program explain that only input/ is visible inside the container.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    IN_DOCKER=1
 
 # Install dependencies first: this layer is cached and rebuilt only when requirements.txt changes.
 COPY requirements.txt .

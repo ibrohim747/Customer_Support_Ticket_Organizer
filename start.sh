@@ -57,8 +57,12 @@ run_with_docker() {
         TTY_FLAGS=(-it)
     fi
 
+    # Home folder at the same path: a file dragged into the terminal (/home/me/...) is found
+    # inside the container too, and results can be saved next to it. --user = files are created
+    # as you, and the program can only write where you yourself can write.
     exec docker run --rm "${TTY_FLAGS[@]}" \
         --user "$(id -u):$(id -g)" \
+        -v "$HOME:$HOME" \
         -v "$PWD/input:/app/input" \
         -v "$PWD/output:/app/output" \
         "$IMAGE" "$@"

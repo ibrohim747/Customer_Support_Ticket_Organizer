@@ -20,12 +20,19 @@ a few seconds later), otherwise Python — the program needs only the standard l
 so no virtual environment or `pip install` is needed just to run it. Then it asks you:
 
 1. **Select a CSV file** — a numbered list of files from `input/` (put your own files there)
-   and the sample `data/sample_tickets.csv`. Press Enter for the first one, or type a path.
+   and the sample `data/sample_tickets.csv`. Press Enter for the first one, type a number,
+   or **drag and drop a CSV file into the terminal window** (or type its path).
+   With Docker, files from your home folder and `input/` can be used
+   (`start.sh` connects your home folder to the container; files are created as your user).
 2. **Preliminary analysis** — nothing is saved yet: how many rows will be saved, rejected
    (with reasons and row numbers), duplicates, already in the database, expected categories.
-3. **Run the full analysis and save the results? [Y/n]** — Enter = yes. Prints the full summary
-   and saves the database, `summary.json` and `rejected.csv` to `output/`.
-4. **Check another file? [y/N]** — Enter = no, the program ends.
+3. **Run the full analysis and save the results? [Y/n]** — Enter = yes.
+4. **Save the results next to the file? [Y/n]** — Enter = yes: `<name>_summary.json` and
+   `<name>_rejected.csv` are saved in the same folder as the CSV file. `n` = type (or drag and drop)
+   another folder; Enter there = `output/`. If the file's folder is not writable (e.g. the sample inside
+   Docker), the program asks for a folder right away. The database always stays in `output/tickets.db`
+   (it is shared by all runs — that is how already saved messages are recognized).
+5. **Check another file? [y/N]** — Enter = no, the program ends.
 
 `./start.sh input/my_tickets.csv` runs the full analysis of one file without questions.
 `./start.sh --python` / `./start.sh --docker` forces one way. On Windows run `start.sh` from Git Bash or WSL.
@@ -132,7 +139,7 @@ docker run --rm -v "$(pwd)/output:/app/output" ticket-organizer data/sample_tick
 Interactive mode in Docker needs `-it` (a keyboard):
 
 ```
-docker run --rm -it -v "$(pwd)/input:/app/input" -v "$(pwd)/output:/app/output" ticket-organizer
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$(pwd)/input:/app/input" -v "$(pwd)/output:/app/output" ticket-organizer
 ```
 
 Run on your own CSV — put it into a folder (here `input/`) and connect that folder too:
