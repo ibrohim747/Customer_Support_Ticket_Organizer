@@ -83,6 +83,13 @@ Build the image (from the project root):
 docker build -t ticket-organizer .
 ```
 
+Create the output folder first. If it is missing, Docker creates it as `root`,
+and with `--user` (see notes below) the program cannot write there:
+
+```
+mkdir -p output
+```
+
 Run on the sample file. `-v` connects the local `output/` folder to the container,
 so the database, summary and rejected rows stay on your computer after the container exits:
 
