@@ -497,3 +497,58 @@ README section "Docker": build, run on the sample, run on own CSV, run tests, Wi
 - `docker run --rm ticket-organizer nope.csv` → `Error: The file nope.csv does not exist.`, exit 1.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — One-command start + interactive mode
+
+**What I asked:** a new user should only do `git clone` → start → choose a file → done, with a
+preliminary analysis first and a `(Y/n)` question before the full analysis.
+
+**What Claude wrote:**
+- `start.sh`: checks Docker, creates `input/` + `output/` as the current user, `docker build --quiet`
+  (cached → seconds), then `docker run -it --user ... -v input -v output`. Arguments are passed on
+  (`./start.sh input/x.csv` = no questions).
+- `interactive.py`: file menu (`input/*.csv`, then `data/*.csv`; Enter = first; or type a path) →
+  **preliminary analysis** (read + validate + categorize, **nothing saved**; shows rows to be saved, rejected
+  with reasons and row numbers, duplicates, already in DB, categories) → `Run the full analysis…? [Y/n]` →
+  full summary + saved files → `Check another file? [y/N]`. Colors only in a real terminal.
+- `cli.py`: `csv_file` is now optional — without it → interactive mode. Full run moved into `run_full()`
+  so the CLI and interactive mode share it. `storage.count_already_saved()` (read only) for the preview.
+- `Dockerfile`: no default `CMD` any more → no arguments = interactive mode.
+  `.dockerignore`: `input`, `start.sh`, `data/sample_tickets_labels.csv` (not an input file).
+  `.gitignore`: `input/` (users' CSVs may contain customer data).
+- Tests: `tests/test_interactive.py` (13, fake `input` via the `ask` parameter); the old CLI test
+  "no arguments → exit 2" replaced (no arguments is now interactive mode). pytest: 79 passed.
+
+**Decisions (to explain at the demo):**
+- **`ask` parameter instead of calling `input()` directly:** tests pass a list of answers; no real keyboard needed.
+- **Preliminary analysis does not write:** you can look at a file and say "n" — the DB stays unchanged.
+- **No keyboard (`docker run` without `-it`, pipe) → `EOFError`** → clear message, exit 1, no traceback.
+- **`mkdir` in `start.sh`, not by Docker:** otherwise `input/` / `output/` would belong to root.
+
+**Checked by Claude:** pytest 79 passed; the whole interactive scenario run with typed answers
+(Enter, y, n) on the sample → preliminary 14 to save / 4 rejected / 1 duplicate, full 19 = 14 + 4 + 1;
+`bash -n start.sh` OK. Windows: `start.sh` needs Git Bash or WSL.
+
+**Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — `start.sh` without Docker
+
+**What I asked:** can it also run without Docker?
+
+**What Claude did:** `start.sh` now picks the way itself: Docker if `docker info` works, otherwise
+Python 3.10+ (`python3`, then `python`). `--python` / `--docker` force one way. Without Docker nothing has to be
+installed: the program uses only the standard library (pytest is needed only for tests).
+Clear messages when Docker is not usable or no Python 3.10+ is found.
+
+**Checked by Claude (in a clean copy of the repo):**
+- `./start.sh` in a real terminal (via `script`) with Docker → file menu, preliminary analysis, full analysis,
+  `output/` files owned by me (not root).
+- No `docker` on `PATH` → "Docker is not available — using Python instead." → runs, 19 rows.
+- No `docker` and no `python3` → clear message, exit 1.
+- `./start.sh --docker` with input from a pipe (no keyboard) → "Interactive mode needs a terminal", exit 1.
+
+**Verified by me:** _TODO_

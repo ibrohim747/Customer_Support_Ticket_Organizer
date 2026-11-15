@@ -4,7 +4,33 @@ Reads customer messages from a CSV file, rejects broken rows, skips duplicates,
 assigns one or more categories (Billing, Account, Technical, Other) by keyword rules,
 stores the messages in an SQLite database and writes a summary.
 
-## Setup
+## Quick start
+
+Needs `git` and **one** of: [Docker](https://docs.docker.com/get-docker/) or
+[Python 3.10+](https://www.python.org/downloads/). Nothing else to install.
+
+```
+git clone https://github.com/ibrohim747/Customer_Support_Ticket_Organizer.git
+cd Customer_Support_Ticket_Organizer
+./start.sh
+```
+
+`start.sh` uses Docker if it is available (builds the image: about a minute the first time,
+a few seconds later), otherwise Python — the program needs only the standard library,
+so no virtual environment or `pip install` is needed just to run it. Then it asks you:
+
+1. **Select a CSV file** — a numbered list of files from `input/` (put your own files there)
+   and the sample `data/sample_tickets.csv`. Press Enter for the first one, or type a path.
+2. **Preliminary analysis** — nothing is saved yet: how many rows will be saved, rejected
+   (with reasons and row numbers), duplicates, already in the database, expected categories.
+3. **Run the full analysis and save the results? [Y/n]** — Enter = yes. Prints the full summary
+   and saves the database, `summary.json` and `rejected.csv` to `output/`.
+4. **Check another file? [y/N]** — Enter = no, the program ends.
+
+`./start.sh input/my_tickets.csv` runs the full analysis of one file without questions.
+`./start.sh --python` / `./start.sh --docker` forces one way. On Windows run `start.sh` from Git Bash or WSL.
+
+## Setup (without Docker)
 
 Requires Python 3.10+.
 
@@ -34,6 +60,13 @@ Run from the project root with the virtual environment activated:
 
 ```
 python -m ticket_organizer data/sample_tickets.csv
+```
+
+Without a file the program starts in **interactive mode** (the same questions as in
+[Quick start](#quick-start)):
+
+```
+python -m ticket_organizer
 ```
 
 Example output:
@@ -74,8 +107,7 @@ Exit code: `0` on success, `1` if the input file cannot be processed
 
 ## Docker
 
-Instead of a virtual environment the program can run in a Docker container
-(needs [Docker](https://docs.docker.com/get-docker/) installed).
+`./start.sh` (see [Quick start](#quick-start)) does all of this for you. The manual commands:
 
 Build the image (from the project root):
 
@@ -94,7 +126,13 @@ Run on the sample file. `-v` connects the local `output/` folder to the containe
 so the database, summary and rejected rows stay on your computer after the container exits:
 
 ```
-docker run --rm -v "$(pwd)/output:/app/output" ticket-organizer
+docker run --rm -v "$(pwd)/output:/app/output" ticket-organizer data/sample_tickets.csv
+```
+
+Interactive mode in Docker needs `-it` (a keyboard):
+
+```
+docker run --rm -it -v "$(pwd)/input:/app/input" -v "$(pwd)/output:/app/output" ticket-organizer
 ```
 
 Run on your own CSV — put it into a folder (here `input/`) and connect that folder too:
@@ -205,11 +243,14 @@ ticket_organizer/   program code
   storage.py        SQLite: save messages, count per category
   summary.py        build / print / save the summary and rejected.csv
   cli.py            command line (argparse), runs all steps
+  interactive.py    interactive mode: choose file, preliminary analysis, confirm, full analysis
   __main__.py       makes `python -m ticket_organizer` work
 keywords/           keyword rules, one file per category
 data/               sample input (sample_tickets.csv) and its expected results
 tests/              pytest tests
+input/              your own CSV files for interactive mode — not in git (created by start.sh)
 output/             generated files (database, summary, rejected rows) — not in git
+start.sh            one-command start (Docker or Python)
 NOTES.md            development notes and how AI was used
 Dockerfile          Docker image (see "Docker"); .dockerignore lists what is left out
 ```

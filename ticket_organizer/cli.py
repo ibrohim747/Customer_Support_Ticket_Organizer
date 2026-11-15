@@ -17,6 +17,10 @@ from ticket_organizer.summary import (
 EXIT_OK = 0
 EXIT_ERROR = 1
 
+# Problems caused by the input file or the environment, not by a bug in the code:
+# shown as one line "Error: ...", without a traceback.
+USER_ERRORS = (FileNotFoundError, ValueError, OSError, sqlite3.Error)
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -25,11 +29,19 @@ def build_parser():
             "Read customer messages from a CSV file (columns: ticket_id, message), "
             "reject rows with an empty id or message, skip duplicates, assign categories "
             "(Billing, Account, Technical, Other) and save them to an SQLite database. "
-            "Prints a summary at the end."
+            "Prints a summary at the end. "
+            "Without csv_file the program starts in interactive mode: choose a file, "
+            "see a preliminary analysis, then confirm the full analysis."
         ),
-        epilog="Example: python -m ticket_organizer data/sample_tickets.csv",
+        epilog=(
+            "Examples: python -m ticket_organizer data/sample_tickets.csv   "
+            "|   python -m ticket_organizer   (interactive)"
+        ),
     )
-    parser.add_argument("csv_file", help="path to the input CSV file")
+    parser.add_argument(
+        "csv_file", nargs="?",
+        help="path to the input CSV file (leave out for interactive mode)",
+    )
     parser.add_argument(
         "--db", default="output/tickets.db",
         help="SQLite database file, created if missing (default: %(default)s)",
@@ -59,24 +71,43 @@ def process_file(csv_path, conn):
     return summary, rejected
 
 
-def main(argv=None):
-    args = build_parser().parse_args(argv)
+def run_full(csv_path, db_path, summary_path, rejected_path):
+    """Full analysis: process the file, save the DB, summary JSON and rejected rows. Returns the summary."""
+    conn = db_creator(db_path)
     try:
-        conn = db_creator(args.db)
-        try:
-            summary, rejected = process_file(args.csv_file, conn)
-        finally:
-            conn.close()
-        save_summary_json(summary, args.summary)
-        save_rejected_csv(rejected, args.rejected)
-    except UnicodeDecodeError:
-        print(f"Error: {args.csv_file} is not a UTF-8 text file.", file=sys.stderr)
-        return EXIT_ERROR
-    except (FileNotFoundError, ValueError, OSError, sqlite3.Error) as error:
-        print(f"Error: {error}", file=sys.stderr)
+        summary, rejected = process_file(csv_path, conn)
+    finally:
+        conn.close()
+    save_summary_json(summary, summary_path)
+    save_rejected_csv(rejected, rejected_path)
+    return summary
+
+
+def error_message(error, csv_path):
+    # UnicodeDecodeError is a kind of ValueError, so it must be checked first.
+    if isinstance(error, UnicodeDecodeError):
+        return f"{csv_path} is not a UTF-8 text file."
+    return str(error)
+
+
+def saved_files_line(args):
+    return f"Saved: database {args.db}, summary {args.summary}, rejected rows {args.rejected}"
+
+
+def main(argv=None, ask=input):
+    args = build_parser().parse_args(argv)
+    if args.csv_file is None:
+        # Imported here, not at the top: interactive.py itself imports from this module.
+        from ticket_organizer.interactive import run_interactive
+        return run_interactive(args, ask)
+
+    try:
+        summary = run_full(args.csv_file, args.db, args.summary, args.rejected)
+    except USER_ERRORS as error:
+        print(f"Error: {error_message(error, args.csv_file)}", file=sys.stderr)
         return EXIT_ERROR
 
     print(format_summary(summary))
     print()
-    print(f"Saved: database {args.db}, summary {args.summary}, rejected rows {args.rejected}")
+    print(saved_files_line(args))
     return EXIT_OK

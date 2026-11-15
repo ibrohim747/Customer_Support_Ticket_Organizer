@@ -22,6 +22,11 @@ def _is_saved(conn, ticket_id, message):
     return row is not None
 
 
+def count_already_saved(conn, records):
+    """How many of these records are already in the DB (read only, nothing is written)."""
+    return sum(1 for r in records if _is_saved(conn, r["ticket_id"], r["message"]))
+
+
 def save_messages(conn, records):
     """Save records {"row", "ticket_id", "message", "categories"}: one DB row per category.
 

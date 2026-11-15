@@ -8,3 +8,7 @@ output
 CLAUDE.md
 tasks
 DEMO_PREP.md
+# Expected results for the sample — documentation, not input; would only clutter the file menu.
+data/sample_tickets_labels.csv
+input
+start.sh

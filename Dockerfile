@@ -15,6 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # `docker run IMAGE file.csv` == `python -m ticket_organizer file.csv`.
-# Without arguments the sample file is processed.
+# Without arguments the program starts in interactive mode (needs `docker run -it`; start.sh does this).
 ENTRYPOINT ["python", "-m", "ticket_organizer"]
-CMD ["data/sample_tickets.csv"]

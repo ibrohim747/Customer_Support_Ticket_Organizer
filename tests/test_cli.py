@@ -57,11 +57,19 @@ def test_not_utf8_file_gives_error_and_exit_1(tmp_path, capsys):
     assert "not a UTF-8" in capsys.readouterr().err
 
 
-def test_no_arguments_is_usage_error(capsys):
+def test_no_arguments_starts_interactive_mode(tmp_path, capsys):
+    # Without a keyboard (EOF on the first question) interactive mode stops with a clear message.
+    def no_keyboard(prompt):
+        raise EOFError
+
+    assert main(out_args(tmp_path), ask=no_keyboard) == 1
+    assert "Interactive mode needs a terminal" in capsys.readouterr().err
+
+
+def test_unknown_option_is_usage_error(capsys):
     with pytest.raises(SystemExit) as exit_info:
-        main([])
+        main(["data/sample_tickets.csv", "--colour"])
     assert exit_info.value.code == 2
-    assert "csv_file" in capsys.readouterr().err
 
 
 def test_help_mentions_all_options(capsys):
