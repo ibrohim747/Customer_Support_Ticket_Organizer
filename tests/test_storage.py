@@ -1,6 +1,14 @@
 import pytest
 
-from ticket_organizer.storage import count_messages, count_per_category, db_creator, save_messages
+import sqlite3
+
+from ticket_organizer.storage import (
+    count_messages,
+    count_per_category,
+    db_creator,
+    export_sql,
+    save_messages,
+)
 
 
 @pytest.fixture
@@ -97,3 +105,33 @@ def test_db_creator_makes_missing_folder(tmp_path):
     conn = db_creator(str(tmp_path / "new_folder" / "tickets.db"))
     conn.close()
     assert (tmp_path / "new_folder" / "tickets.db").exists()
+
+
+def test_export_sql_round_trip(conn, tmp_path):
+    # The exported file, run in a new empty database, gives exactly the same rows.
+    save_messages(conn, [
+        rec("T1", "It's broken; DROP TABLE x; --", ["Technical"]),
+        rec("T2", 'quote " and back\\slash and \n newline', ["Account", "Billing"]),
+        rec("T3", "Привет", ["Other"]),
+    ])
+    path = tmp_path / "out" / "tickets.sql"
+    assert export_sql(conn, path) == 4
+
+    new = sqlite3.connect(":memory:")
+    new.executescript(path.read_text(encoding="utf-8"))
+    query = "SELECT ticket_id, message, category FROM messages ORDER BY 1, 2, 3"
+    assert new.execute(query).fetchall() == conn.execute(query).fetchall()
+    new.close()
+
+
+def test_export_sql_escapes_quotes(conn, tmp_path):
+    save_messages(conn, [rec("T1", "It's", ["Other"])])
+    path = tmp_path / "tickets.sql"
+    export_sql(conn, path)
+    assert "'It''s'" in path.read_text(encoding="utf-8")
+
+
+def test_export_sql_empty_database(conn, tmp_path):
+    path = tmp_path / "tickets.sql"
+    assert export_sql(conn, path) == 0
+    assert "CREATE TABLE" in path.read_text(encoding="utf-8")

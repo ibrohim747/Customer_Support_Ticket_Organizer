@@ -29,12 +29,17 @@ so no virtual environment or `pip install` is needed just to run it. Then it ask
    in memory, so this is fast even for a very large file. Categories, duplicates and the database
    check come only in the full analysis.
 3. **Run the full analysis and save the results? [Y/n]** — Enter = yes.
-4. **Save the results next to the file? [Y/n]** — Enter = yes: `<name>_summary.json` and
-   `<name>_rejected.csv` are saved in the same folder as the CSV file. `n` = type (or drag and drop)
-   another folder; Enter there = `output/`. If the file's folder is not writable (e.g. the sample inside
-   Docker), the program asks for a folder right away. The database always stays in `output/tickets.db`
-   (it is shared by all runs — that is how already saved messages are recognized).
-5. **Check another file? [y/N]** — Enter = no, the program ends.
+4. **Save the results to `<folder>/output/`? [Y/n]** — Enter = yes: an `output/` folder is created
+   **next to the input file** and gets all results: the database `tickets.db`, `<name>_summary.json` and
+   `<name>_rejected.csv`. For files from the project's `input/` or `data/` this is the project's `output/`
+   (next to `input/`). `n` = type (or drag and drop) another folder; Enter there = the project's `output/`.
+   If the folder cannot be created (no write access), the program asks for another one right away.
+   Each output folder has its own database, so "already in database" works per folder.
+5. **Export the database as a .sql file for PostgreSQL? [y/N]** — the program first notes that no
+   PostgreSQL server is connected and shows the full path of the SQLite file. `y` = `tickets.sql`
+   (`CREATE TABLE` + `INSERT`s) is written to the same output folder, with the command to import it:
+   `psql -d your_db -f tickets.sql`.
+6. **Check another file? [y/N]** — Enter = no, the program ends.
 
 `./start.sh input/my_tickets.csv` runs the full analysis of one file without questions.
 `./start.sh --python` / `./start.sh --docker` forces one way. On Windows run `start.sh` from Git Bash or WSL.
@@ -101,6 +106,7 @@ Options (all optional):
 | `--db` | `output/tickets.db` | SQLite database, created if missing |
 | `--summary` | `output/summary.json` | summary of the run as JSON |
 | `--rejected` | `output/rejected.csv` | rejected rows: `row, ticket_id, message, reason` |
+| `--export-sql` | (none) | also export the whole database as a `.sql` file for PostgreSQL |
 
 Example with options:
 
@@ -209,6 +215,11 @@ messages (ticket_id TEXT, message TEXT, category TEXT, UNIQUE(ticket_id, message
 One row per (message, category): a message with two categories is stored as two rows.
 This keeps the insert code simple; the cost is that the message text repeats per category.
 For a large database, two tables (`messages` + `message_categories`) would be better.
+
+The database is an SQLite **file** (`tickets.db`), no database server is needed. To move the data into
+PostgreSQL, export it (`--export-sql FILE` or the question in interactive mode) and import the file with
+`psql -d your_db -f FILE`. The export is plain SQL (`CREATE TABLE` + `INSERT`, quotes doubled), checked by
+importing it into a real PostgreSQL 16.
 
 ## Summary
 

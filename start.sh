@@ -62,6 +62,7 @@ run_with_docker() {
     # as you, and the program can only write where you yourself can write.
     exec docker run --rm "${TTY_FLAGS[@]}" \
         --user "$(id -u):$(id -g)" \
+        -e HOST_PROJECT_DIR="$PWD" \
         -v "$HOME:$HOME" \
         -v "$PWD/input:/app/input" \
         -v "$PWD/output:/app/output" \

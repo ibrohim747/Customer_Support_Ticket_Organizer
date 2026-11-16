@@ -65,6 +65,42 @@ def count_messages(conn):
     ).fetchone()[0]
 
 
+def _sql_text(value):
+    # Standard SQL string literal: wrap in '...' and double every ' inside (It's -> 'It''s').
+    return "'" + value.replace("'", "''") + "'"
+
+
+def export_sql(conn, path):
+    """Write the whole database as a .sql file for PostgreSQL (CREATE TABLE + INSERTs).
+
+    Plain standard SQL — SQLite can read it too (used by the tests).
+    Returns the number of exported rows.
+    """
+    rows = conn.execute(
+        "SELECT ticket_id, message, category FROM messages ORDER BY ticket_id, message, category"
+    ).fetchall()
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(
+            "-- Customer Support Ticket Organizer: export of the messages table for PostgreSQL.\n"
+            "-- One row per (message, category). Import into an empty database:\n"
+            "--   psql -d your_db -f this_file.sql\n\n"
+            "CREATE TABLE IF NOT EXISTS messages (\n"
+            "    ticket_id VARCHAR(255) NOT NULL,\n"
+            "    message   TEXT         NOT NULL,\n"
+            "    category  VARCHAR(100) NOT NULL\n"
+            ");\n\n"
+            "BEGIN;\n"
+        )
+        for ticket_id, message, category in rows:
+            file.write(
+                "INSERT INTO messages (ticket_id, message, category) VALUES "
+                f"({_sql_text(ticket_id)}, {_sql_text(message)}, {_sql_text(category)});\n"
+            )
+        file.write("COMMIT;\n")
+    return len(rows)
+
+
 if __name__ == "__main__":
     from ticket_organizer.categorizer import categorize
     from ticket_organizer.reader import read_csv, remove_duplicates, validation

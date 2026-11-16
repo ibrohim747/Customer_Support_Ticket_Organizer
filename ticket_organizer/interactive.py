@@ -12,6 +12,8 @@ from ticket_organizer.cli import (
     EXIT_OK,
     USER_ERRORS,
     error_message,
+    import_hint,
+    run_export,
     run_full,
 )
 from ticket_organizer.reader import quick_check
@@ -129,23 +131,53 @@ def preliminary_analysis(csv_path):
             print(f"    row {row_number}: {reason}")
 
 
+def full_path(path):
+    """Absolute path as the user sees it on their computer.
+
+    In Docker the program runs in /app, so start.sh passes the real project folder in HOST_PROJECT_DIR.
+    """
+    host_dir = os.environ.get("HOST_PROJECT_DIR")
+    if host_dir and not os.path.isabs(path):
+        return os.path.join(host_dir, path)
+    return os.path.abspath(path)
+
+
 def _writable(folder):
     return Path(folder).is_dir() and os.access(folder, os.W_OK)
 
 
-def choose_results_folder(csv_path, ask, default_folder):
-    """Ask where to save the summary and rejected rows: next to the CSV file or another folder."""
-    folder = str(Path(csv_path).parent)
-    if _writable(folder):
-        question = f"Save the results next to the file ({folder}/)? n = choose another folder"
+def suggested_output_folder(csv_path, project_output):
+    """output/ next to the input file.
+
+    Files from the project's own input/ or data/ folder -> the project's output/ (it is next to input/).
+    Any other file -> an output/ folder in the same folder as the file.
+    """
+    parent = Path(csv_path).parent.resolve()
+    if parent in (Path(d).resolve() for d in SEARCH_DIRS):
+        return project_output
+    return str(Path(csv_path).parent / "output")
+
+
+def _can_create(folder):
+    # The folder exists and is writable, or it can be created inside a writable folder.
+    path = Path(folder)
+    return _writable(path) if path.exists() else _writable(path.parent)
+
+
+def choose_results_folder(csv_path, ask, project_output):
+    """Ask where to save all results (database, summary, rejected rows)."""
+    folder = suggested_output_folder(csv_path, project_output)
+    if _can_create(folder):
+        question = f"Save the results to {full_path(folder)}/? n = choose another folder"
         if ask_yes_no(question, True, ask):
+            Path(folder).mkdir(parents=True, exist_ok=True)
             return folder
     else:
-        warn(f"Cannot save next to the file: {folder}/ is not writable here.")
+        warn(f"Cannot create {full_path(folder)}/ here (no write access).")
 
     while True:
-        answer = clean_path(ask(f"Folder for the results (Enter = {default_folder}/, drag and drop works): "))
-        folder = answer or default_folder
+        answer = clean_path(ask(f"Folder for the results (Enter = {project_output}/, drag and drop works): "))
+        folder = answer or project_output
         try:
             Path(folder).mkdir(parents=True, exist_ok=True)
         except OSError as error:
@@ -157,21 +189,38 @@ def choose_results_folder(csv_path, ask, default_folder):
 
 
 def full_analysis(csv_path, args, ask):
-    folder = choose_results_folder(csv_path, ask, default_folder=str(Path(args.summary).parent))
-    # Named after the CSV file, so results of different files do not overwrite each other.
+    folder = choose_results_folder(csv_path, ask, project_output=str(Path(args.db).parent))
+    # The database lives in the same output folder. Summary and rejected rows are named after
+    # the CSV file, so results of different files in one folder do not overwrite each other.
     name = Path(csv_path).stem
+    db_path = str(Path(folder) / Path(args.db).name)
     summary_path = str(Path(folder) / f"{name}_summary.json")
     rejected_path = str(Path(folder) / f"{name}_rejected.csv")
 
-    summary = run_full(csv_path, args.db, summary_path, rejected_path)
+    summary = run_full(csv_path, db_path, summary_path, rejected_path)
     title(f"Full analysis: {csv_path}")
     print(format_summary(summary))
     print()
-    print("Saved:")
-    print(f"  summary:       {summary_path}")
-    print(f"  rejected rows: {rejected_path}")
-    print(f"  database:      {args.db}")
+    print(f"Saved to {full_path(folder)}/:")
+    print(f"  database:      {Path(db_path).name}")
+    print(f"  summary:       {Path(summary_path).name}")
+    print(f"  rejected rows: {Path(rejected_path).name}")
     ok("Done.")
+    offer_sql_export(folder, db_path, ask)
+
+
+def offer_sql_export(folder, db_path, ask):
+    """No database server is connected: say where the data is and offer a .sql file for one."""
+    print()
+    warn("Note: no PostgreSQL database server is connected.")
+    print(f"  The results are stored in the SQLite file {full_path(db_path)}")
+    print("  To put them into your PostgreSQL database, export them as a .sql file and import it there.")
+    if not ask_yes_no("Export the database as a .sql file for PostgreSQL?", False, ask):
+        return
+    sql_path = str(Path(folder) / "tickets.sql")
+    rows = run_export(db_path, sql_path)
+    ok(f"Exported {rows} rows to {sql_path}. Import it into PostgreSQL with:")
+    print(import_hint(sql_path))
 
 
 # --- main loop ----------------------------------------------------------------

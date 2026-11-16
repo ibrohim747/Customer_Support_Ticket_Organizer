@@ -81,19 +81,19 @@ def test_choose_file_accepts_a_typed_path(project):
 
 
 def test_preliminary_then_full_analysis(project, args, capsys):
-    # file 1 -> full analysis: yes -> save next to the file: Enter (yes) -> another file: no
-    assert run_interactive(args, answers("1", "y", "", "n")) == 0
+    # file 1 -> full: yes -> save next to the file: Enter (yes) -> export .sql: Enter (no) -> another: no
+    assert run_interactive(args, answers("1", "y", "", "", "n")) == 0
     out = capsys.readouterr().out
     assert "Preliminary analysis: input/tickets.csv" in out
     assert "Rows in file:  4" in out
     assert "Rejected:      1  (empty ticket_id: 1)" in out
     assert "row 4: empty ticket_id" in out
     assert "Full analysis" in out and "Done." in out
-    # saved next to the CSV, named after it; the database stays in output/
-    summary = json.loads((project / "input" / "tickets_summary.json").read_text(encoding="utf-8"))
+    # a file from the project's input/ -> the project's output/ (next to input/), named after the CSV
+    summary = json.loads((project / "output" / "tickets_summary.json").read_text(encoding="utf-8"))
     assert summary["accepted"] == 2
     assert summary["rows_read"] == 4
-    assert (project / "input" / "tickets_rejected.csv").exists()
+    assert (project / "output" / "tickets_rejected.csv").exists()
     assert (project / "output" / "tickets.db").exists()
 
 
@@ -175,16 +175,17 @@ def test_start_text_mentions_drag_and_drop(project, args, capsys):
 
 
 def test_save_to_another_folder(project, args, capsys):
-    # full analysis: yes -> next to the file: n -> folder typed (dragged, with quotes) -> another file: no
+    # full: yes -> next to the file: n -> folder typed (dragged, with quotes) -> export: no -> another: no
     target = project / "results here"
-    run_interactive(args, answers("1", "y", "n", f"'{target}' ", "n"))
+    run_interactive(args, answers("1", "y", "n", f"'{target}' ", "n", "n"))
     assert (target / "tickets_summary.json").exists()
     assert (target / "tickets_rejected.csv").exists()
-    assert not (project / "input" / "tickets_summary.json").exists()
+    assert (target / "tickets.db").exists()  # the database goes with the other results
+    assert not (project / "output" / "tickets_summary.json").exists()
 
 
 def test_enter_for_folder_uses_output(project, args):
-    run_interactive(args, answers("1", "y", "n", "", "n"))
+    run_interactive(args, answers("1", "y", "n", "", "n", "n"))
     assert (project / "output" / "tickets_summary.json").exists()
 
 
@@ -194,10 +195,48 @@ def test_not_writable_folder_asks_for_another(project, args, capsys):
     (read_only / "t.csv").write_text("ticket_id,message\nT1,Hello\n", encoding="utf-8")
     read_only.chmod(0o555)  # nobody may write here
     try:
-        # path to the file -> full: yes -> (next to the file is impossible) -> Enter = output/ -> no
-        run_interactive(args, answers(str(read_only / "t.csv"), "y", "", "n"))
+        # path -> full: yes -> (next to the file is impossible) -> Enter = output/ -> export: no -> another: no
+        run_interactive(args, answers(str(read_only / "t.csv"), "y", "", "n", "n"))
     finally:
         read_only.chmod(0o755)
     out = capsys.readouterr().out
-    assert "is not writable here" in out
+    assert "no write access" in out
     assert (project / "output" / "t_summary.json").exists()
+
+
+def test_notice_about_database_and_no_export_by_default(project, args, capsys):
+    run_interactive(args, answers("1", "y", "", "", "n"))
+    out = capsys.readouterr().out
+    assert "no PostgreSQL database server is connected" in out
+    assert f"SQLite file {project / 'output' / 'tickets.db'}" in out  # full path, not just output/...
+    assert not (project / "output" / "tickets.sql").exists()
+
+
+def test_export_sql_on_yes(project, args, capsys):
+    # full: yes -> next to the file -> export: y -> another: no
+    run_interactive(args, answers("1", "y", "", "y", "n"))
+    out = capsys.readouterr().out
+    sql = project / "output" / "tickets.sql"
+    assert sql.exists()
+    assert "Exported 2 rows" in out
+    assert "psql -d your_db -f" in out
+    assert "mysql" not in out.lower() and "mariadb" not in out.lower()
+
+
+def test_database_path_in_docker_is_shown_as_on_the_computer(project, args, capsys, monkeypatch):
+    monkeypatch.setenv("HOST_PROJECT_DIR", "/home/me/project")
+    run_interactive(args, answers("1", "y", "", "", "n"))
+    assert "Saved to /home/me/project/output/:" in capsys.readouterr().out
+
+
+def test_file_outside_project_gets_output_folder_next_to_it(project, args, capsys):
+    elsewhere = project / "Downloads"
+    elsewhere.mkdir()
+    (elsewhere / "march.csv").write_text("ticket_id,message\nT1,I was charged\n", encoding="utf-8")
+    # dragged path -> full: yes -> save to Downloads/output/: Enter -> export: no -> another: no
+    run_interactive(args, answers(f"'{elsewhere / 'march.csv'}' ", "y", "", "", "n"))
+    out_dir = elsewhere / "output"
+    assert sorted(p.name for p in out_dir.iterdir()) == [
+        "march_rejected.csv", "march_summary.json", "tickets.db",
+    ]
+    assert not (project / "output").exists()  # nothing in the project's output/

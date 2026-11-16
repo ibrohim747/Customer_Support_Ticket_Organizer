@@ -662,3 +662,49 @@ old way (read + validate + dedupe + categorize, without the DB queries) 123 s, 5
 for millions it would need the same row-by-row approach (README "Assumptions and limitations").
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Where is the database? + output/ next to the input file + .sql export for PostgreSQL
+
+**What I asked:**
+1. Where is the SQL / DB file? Add a notice: no SQL server connector, the result was saved as `.db`;
+   if you want it in a database server — (Y/n).
+2. (after my test) "There is no output folder" → the output folder must be created next to the input file.
+3. Don't use MariaDB, use PostgreSQL.
+
+**Answers / findings:**
+- The DB is the SQLite **file** `tickets.db` — SQLite keeps the whole database in one file, there is no
+  separate `.sql` file and no server.
+- My "missing" `output/` was inside the cloned project `for_test/Customer_Support_Ticket_Organizer/`, and that
+  clone had been moved to the Trash — `for_test/` itself only had the CSV and the two results saved next to it.
+  The program only printed `output/tickets.db` (relative), so it was unclear where that is.
+
+**Decision (asked by Claude, chosen by me):** on "Y" → **export a `.sql` file** (stdlib only, testable)
+instead of a real connection URL (needs a driver package, a running server and passwords).
+
+**What Claude changed:**
+- Interactive mode: results go to an `output/` folder **next to the input file** — database, summary, rejected
+  rows and the `.sql` export together. Files from the project's `input/` / `data/` → the project's `output/`.
+  Each output folder has its own `tickets.db`.
+- After the full analysis: "Note: no PostgreSQL database server is connected." + full path of the SQLite file +
+  `Export the database as a .sql file for PostgreSQL? [y/N]` → `tickets.sql` + the `psql` command.
+- Full paths everywhere; in Docker `start.sh` passes `HOST_PROJECT_DIR` so the real path on the computer is shown
+  instead of `/app/...`.
+- `storage.export_sql()` — `CREATE TABLE` + `INSERT`s, quotes doubled (`It's` → `'It''s'`), one transaction.
+  CLI: `--export-sql FILE`.
+- First version also wrote MySQL / MariaDB instructions; removed after my request (PostgreSQL only).
+- Tests: export round trip (quotes, backslash, newline, Cyrillic, `DROP TABLE` text), quote escaping,
+  empty DB, `--export-sql`, notice + default "no", export on "y", output folder next to an outside file,
+  Docker path display. Two test bugs on the way (checked a question text in the output — questions go to
+  `ask`) fixed. pytest: 104 passed.
+
+**Checked by Claude:**
+- Real **PostgreSQL 16** (Docker): imported the export with tricky text → identical, 16 rows; the export from
+  the full `start.sh` scenario → Account 5, Billing 6, Other 3, Technical 5.
+- Full `./start.sh` scenario in Docker (temporary folder as `$HOME`): dragged file → `for_test/output/` with
+  `tickets.db`, `golden_tickets_summary.json`, `golden_tickets_rejected.csv`, `tickets.sql`, owned by me.
+- (While MySQL was still planned: MariaDB needed `NO_BACKSLASH_ESCAPES`, otherwise `\n` / `\t` in messages were
+  corrupted — one more reason PostgreSQL only is simpler. The MariaDB test image was removed again.)
+
+**Verified by me:** _TODO_

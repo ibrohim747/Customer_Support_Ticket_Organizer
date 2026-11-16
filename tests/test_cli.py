@@ -133,3 +133,10 @@ def test_end_to_end_on_small_temp_csv(tmp_path):
         ("5", "empty ticket_id"),
         ("6", "empty message"),
     ]
+
+
+def test_export_sql_option(tmp_path, capsys):
+    sql = tmp_path / "export" / "tickets.sql"
+    assert main([SAMPLE, *out_args(tmp_path), "--export-sql", str(sql)]) == 0
+    assert "Exported 15 rows" in capsys.readouterr().out  # 14 messages, T0147 has 2 categories
+    assert sql.read_text(encoding="utf-8").count("INSERT INTO messages") == 15

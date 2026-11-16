@@ -4,7 +4,7 @@ import sys
 
 from ticket_organizer.categorizer import categorize
 from ticket_organizer.reader import read_csv, remove_duplicates, validation
-from ticket_organizer.storage import count_per_category, db_creator, save_messages
+from ticket_organizer.storage import count_per_category, db_creator, export_sql, save_messages
 from ticket_organizer.summary import (
     build_summary,
     format_summary,
@@ -54,6 +54,10 @@ def build_parser():
         "--rejected", default="output/rejected.csv",
         help="where to save rejected rows with row number and reason (default: %(default)s)",
     )
+    parser.add_argument(
+        "--export-sql", metavar="FILE",
+        help="also export the whole database as a .sql file for PostgreSQL",
+    )
     return parser
 
 
@@ -83,6 +87,20 @@ def run_full(csv_path, db_path, summary_path, rejected_path):
     return summary
 
 
+def run_export(db_path, sql_path):
+    """Export the SQLite database to a .sql file. Returns the number of rows."""
+    conn = db_creator(db_path)
+    try:
+        return export_sql(conn, sql_path)
+    finally:
+        conn.close()
+
+
+def import_hint(sql_path):
+    return f'  psql -d your_db -f "{sql_path}"'
+
+
+
 def error_message(error, csv_path):
     # UnicodeDecodeError is a kind of ValueError, so it must be checked first.
     if isinstance(error, UnicodeDecodeError):
@@ -103,6 +121,7 @@ def main(argv=None, ask=input):
 
     try:
         summary = run_full(args.csv_file, args.db, args.summary, args.rejected)
+        exported = run_export(args.db, args.export_sql) if args.export_sql else None
     except USER_ERRORS as error:
         print(f"Error: {error_message(error, args.csv_file)}", file=sys.stderr)
         return EXIT_ERROR
@@ -110,4 +129,7 @@ def main(argv=None, ask=input):
     print(format_summary(summary))
     print()
     print(saved_files_line(args))
+    if exported is not None:
+        print(f"Exported {exported} rows to {args.export_sql}. Import it into PostgreSQL with:")
+        print(import_hint(args.export_sql))
     return EXIT_OK
