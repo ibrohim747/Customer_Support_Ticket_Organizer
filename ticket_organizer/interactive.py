@@ -55,12 +55,13 @@ def warn(text):
 
 # --- questions --------------------------------------------------------------
 
-def ask_yes_no(question, default, ask):
-    hint = "[Y/n]" if default else "[y/N]"
+def ask_yes_no(question, ask):
+    """Every yes/no question looks the same: [y/n]. Capital letters work too (Y, N, Yes, NO).
+
+    There is no hidden default: an empty answer (just Enter) asks again.
+    """
     while True:
-        answer = ask(f"{question} {hint} ").strip().lower()
-        if answer == "":
-            return default
+        answer = ask(f"{question} [y/n] ").strip().lower()
         if answer in ("y", "yes", "д", "да"):
             return True
         if answer in ("n", "no", "н", "нет"):
@@ -169,7 +170,7 @@ def choose_results_folder(csv_path, ask, project_output):
     folder = suggested_output_folder(csv_path, project_output)
     if _can_create(folder):
         question = f"Save the results to {full_path(folder)}/? n = choose another folder"
-        if ask_yes_no(question, True, ask):
+        if ask_yes_no(question, ask):
             Path(folder).mkdir(parents=True, exist_ok=True)
             return folder
     else:
@@ -215,7 +216,7 @@ def offer_sql_export(folder, db_path, ask):
     warn("Note: no PostgreSQL database server is connected.")
     print(f"  The results are stored in the SQLite file {full_path(db_path)}")
     print("  To put them into your PostgreSQL database, export them as a .sql file and import it there.")
-    if not ask_yes_no("Export the database as a .sql file for PostgreSQL?", False, ask):
+    if not ask_yes_no("Export the database as a .sql file for PostgreSQL?", ask):
         return
     sql_path = str(Path(folder) / "tickets.sql")
     rows = run_export(db_path, sql_path)
@@ -234,7 +235,7 @@ def run_interactive(args, ask=input):
             csv_path = choose_file(ask)
             try:
                 preliminary_analysis(csv_path)
-                if ask_yes_no("Run the full analysis and save the results?", True, ask):
+                if ask_yes_no("Run the full analysis and save the results?", ask):
                     full_analysis(csv_path, args, ask)
                 else:
                     warn("Skipped, nothing was saved.")
@@ -242,7 +243,7 @@ def run_interactive(args, ask=input):
                 warn(f"Error: {error_message(error, csv_path)}")
                 if isinstance(error, FileNotFoundError) and os.environ.get("IN_DOCKER"):
                     print(DOCKER_HINT)
-            if not ask_yes_no("Check another file?", False, ask):
+            if not ask_yes_no("Check another file?", ask):
                 print("Bye!")
                 return EXIT_OK
     except EOFError:

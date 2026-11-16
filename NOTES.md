@@ -708,3 +708,21 @@ instead of a real connection URL (needs a driver package, a running server and p
   corrupted — one more reason PostgreSQL only is simpler. The MariaDB test image was removed again.)
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — One style for yes/no questions: `[y/n]`
+
+**What I asked:** some questions ended with `[y/N]`, others with `[Y/n]` — use one style that also understands
+small letters.
+
+**What Claude changed:** `ask_yes_no(question, ask)` — every question ends with `[y/n]`; answers are compared in
+lower case, so `y`, `Y`, `yes`, `YES`, `n`, `N`, `no` (and `да` / `нет`) all work. The capital letter used to
+mark the default for Enter; with one style there is no visible default, so **Enter alone asks again**
+(no hidden choice). Enter still works where it is not a yes/no question: choosing the first file, or `output/`
+as the folder.
+
+Tests: 12 answer variants, empty / unknown answer asks again, all 4 questions of a run end with `[y/n]`;
+old scenarios now answer `y` / `n` instead of Enter. pytest: 111 passed. README updated.
+
+**Verified by me:** _TODO_

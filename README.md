@@ -28,18 +28,21 @@ so no virtual environment or `pip install` is needed just to run it. Then it ask
    **rejected rows** (with reasons and the first row numbers). The file is read row by row and not kept
    in memory, so this is fast even for a very large file. Categories, duplicates and the database
    check come only in the full analysis.
-3. **Run the full analysis and save the results? [Y/n]** — Enter = yes.
-4. **Save the results to `<folder>/output/`? [Y/n]** — Enter = yes: an `output/` folder is created
+3. **Run the full analysis and save the results? [y/n]**
+4. **Save the results to `<folder>/output/`? [y/n]** — `y`: an `output/` folder is created
    **next to the input file** and gets all results: the database `tickets.db`, `<name>_summary.json` and
    `<name>_rejected.csv`. For files from the project's `input/` or `data/` this is the project's `output/`
    (next to `input/`). `n` = type (or drag and drop) another folder; Enter there = the project's `output/`.
    If the folder cannot be created (no write access), the program asks for another one right away.
    Each output folder has its own database, so "already in database" works per folder.
-5. **Export the database as a .sql file for PostgreSQL? [y/N]** — the program first notes that no
+5. **Export the database as a .sql file for PostgreSQL? [y/n]** — the program first notes that no
    PostgreSQL server is connected and shows the full path of the SQLite file. `y` = `tickets.sql`
    (`CREATE TABLE` + `INSERT`s) is written to the same output folder, with the command to import it:
    `psql -d your_db -f tickets.sql`.
-6. **Check another file? [y/N]** — Enter = no, the program ends.
+6. **Check another file? [y/n]** — `n` ends the program.
+
+All yes/no questions end with `[y/n]` and understand small and capital letters
+(`y`, `Y`, `yes`, `n`, `N`, `no`, also `да` / `нет`). There is no hidden default: Enter alone asks again.
 
 `./start.sh input/my_tickets.csv` runs the full analysis of one file without questions.
 `./start.sh --python` / `./start.sh --docker` forces one way. On Windows run `start.sh` from Git Bash or WSL.

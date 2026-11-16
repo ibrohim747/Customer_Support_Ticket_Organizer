@@ -56,15 +56,32 @@ def test_find_csv_files_lists_input_then_data(tmp_path):
 
 
 @pytest.mark.parametrize("reply, expected", [
-    ("", True), ("y", True), ("Yes", True), ("да", True), ("n", False), ("NO", False),
+    ("y", True), ("Y", True), ("yes", True), ("YES", True), ("да", True), ("Да", True),
+    ("n", False), ("N", False), ("no", False), ("No", False), ("нет", False), (" n ", False),
 ])
-def test_ask_yes_no_default_yes(reply, expected):
-    assert ask_yes_no("Go?", True, answers(reply)) is expected
+def test_ask_yes_no_understands_small_and_capital_letters(reply, expected):
+    assert ask_yes_no("Go?", answers(reply)) is expected
 
 
-def test_ask_yes_no_repeats_on_unclear_answer(capsys):
-    assert ask_yes_no("Go?", False, answers("maybe", "y")) is True
-    assert "answer y or n" in capsys.readouterr().out
+def test_ask_yes_no_repeats_on_unclear_or_empty_answer(capsys):
+    # no hidden default: Enter alone and unknown words ask again
+    assert ask_yes_no("Go?", answers("", "maybe", "N")) is False
+    assert capsys.readouterr().out.count("answer y or n") == 2
+
+
+def test_every_yes_no_question_uses_the_same_hint(project, args):
+    prompts = []
+    replies = iter(["1", "y", "y", "y", "n"])  # file, full, save, export, another
+
+    def ask(prompt):
+        prompts.append(prompt)
+        return next(replies)
+
+    run_interactive(args, ask)
+    yes_no = prompts[1:]
+    assert len(yes_no) == 4
+    assert all(p.endswith("[y/n] ") for p in yes_no)
+    assert not any("[Y/n]" in p or "[y/N]" in p for p in prompts)
 
 
 def test_choose_file_enter_takes_first(project):
@@ -81,8 +98,8 @@ def test_choose_file_accepts_a_typed_path(project):
 
 
 def test_preliminary_then_full_analysis(project, args, capsys):
-    # file 1 -> full: yes -> save next to the file: Enter (yes) -> export .sql: Enter (no) -> another: no
-    assert run_interactive(args, answers("1", "y", "", "", "n")) == 0
+    # file 1 -> full: y -> save to output/: y -> export .sql: n -> another: n
+    assert run_interactive(args, answers("1", "y", "y", "n", "n")) == 0
     out = capsys.readouterr().out
     assert "Preliminary analysis: input/tickets.csv" in out
     assert "Rows in file:  4" in out
@@ -205,7 +222,7 @@ def test_not_writable_folder_asks_for_another(project, args, capsys):
 
 
 def test_notice_about_database_and_no_export_by_default(project, args, capsys):
-    run_interactive(args, answers("1", "y", "", "", "n"))
+    run_interactive(args, answers("1", "y", "y", "n", "n"))
     out = capsys.readouterr().out
     assert "no PostgreSQL database server is connected" in out
     assert f"SQLite file {project / 'output' / 'tickets.db'}" in out  # full path, not just output/...
@@ -213,8 +230,8 @@ def test_notice_about_database_and_no_export_by_default(project, args, capsys):
 
 
 def test_export_sql_on_yes(project, args, capsys):
-    # full: yes -> next to the file -> export: y -> another: no
-    run_interactive(args, answers("1", "y", "", "y", "n"))
+    # full: y -> save to output/: y -> export: y -> another: n
+    run_interactive(args, answers("1", "y", "y", "y", "n"))
     out = capsys.readouterr().out
     sql = project / "output" / "tickets.sql"
     assert sql.exists()
@@ -225,7 +242,7 @@ def test_export_sql_on_yes(project, args, capsys):
 
 def test_database_path_in_docker_is_shown_as_on_the_computer(project, args, capsys, monkeypatch):
     monkeypatch.setenv("HOST_PROJECT_DIR", "/home/me/project")
-    run_interactive(args, answers("1", "y", "", "", "n"))
+    run_interactive(args, answers("1", "y", "y", "n", "n"))
     assert "Saved to /home/me/project/output/:" in capsys.readouterr().out
 
 
@@ -233,8 +250,8 @@ def test_file_outside_project_gets_output_folder_next_to_it(project, args, capsy
     elsewhere = project / "Downloads"
     elsewhere.mkdir()
     (elsewhere / "march.csv").write_text("ticket_id,message\nT1,I was charged\n", encoding="utf-8")
-    # dragged path -> full: yes -> save to Downloads/output/: Enter -> export: no -> another: no
-    run_interactive(args, answers(f"'{elsewhere / 'march.csv'}' ", "y", "", "", "n"))
+    # dragged path -> full: y -> save to Downloads/output/: y -> export: n -> another: n
+    run_interactive(args, answers(f"'{elsewhere / 'march.csv'}' ", "y", "y", "n", "n"))
     out_dir = elsewhere / "output"
     assert sorted(p.name for p in out_dir.iterdir()) == [
         "march_rejected.csv", "march_summary.json", "tickets.db",
