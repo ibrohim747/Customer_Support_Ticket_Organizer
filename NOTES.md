@@ -629,3 +629,36 @@ owned by me; sample `data/sample_tickets.csv` → "Cannot save next to the file:
 Enter → saved to `output/`.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Preliminary analysis: only rows + rejected, for large files
+
+**What I asked:** the preliminary analysis should show only "Rows in file" and "Rejected", not almost
+everything — input files may be huge. And: which code does the preliminary analysis?
+
+**Answer — the old `preliminary_analysis`** did nearly the whole full run without saving: `read_csv` loaded the
+**whole file into memory** (`list(reader)`), `validation` + `remove_duplicates` made copies of all rows,
+`categorize` ran the regexes on every message, and `count_already_saved` made one DB query per message.
+Then the full analysis did all of it again.
+
+**What Claude changed:**
+- `reader.iter_rows()` — the file checks (extension, exists, not empty, header) + rows **one by one** (`yield`);
+  `read_csv()` is now just `list(iter_rows(...))`, behaviour unchanged.
+- `reader.clean_row()` + `reader.reject_reason()` — the strip / reason logic moved out of `validation` so that
+  `validation` and the new `quick_check` use the same rules (cannot disagree).
+- `reader.quick_check(path)` → `(rows, rejected_by_reason, first 5 rejected)`: counts while reading,
+  keeps nothing else → memory does not grow with the file.
+- `preliminary_analysis` prints only: Rows in file, Rejected (reasons), first 5 rejected rows. No categories,
+  no duplicates, no database (the DB is not even opened). `storage.count_already_saved` removed (unused).
+- Tests: 4 for `quick_check` (counts, only a few examples kept, agrees with `validation` on the sample,
+  same file checks), 1 that the preliminary output has none of the heavy parts. pytest: 96 passed.
+
+**Measured on 1,000,000 rows (59 MB):** new `quick_check` 4.3 s, peak memory 0.3 MB;
+old way (read + validate + dedupe + categorize, without the DB queries) 123 s, 558 MB.
+(Measured with `tracemalloc`, which slows everything down — the ratio matters, not the seconds.)
+
+**Note for the demo:** the full analysis still loads the whole file (`read_csv`) — fine for thousands of rows;
+for millions it would need the same row-by-row approach (README "Assumptions and limitations").
+
+**Verified by me:** _TODO_

@@ -1,6 +1,6 @@
 import pytest
 
-from ticket_organizer.reader import read_csv, remove_duplicates, validation
+from ticket_organizer.reader import quick_check, read_csv, remove_duplicates, validation
 
 
 def test_good_row_is_valid():
@@ -156,3 +156,33 @@ def test_read_csv_missing_file_raises(tmp_path):
 def test_read_csv_uppercase_extension_is_ok(tmp_path):
     path = write(tmp_path, "ticket_id,message\nT1,Hello\n", name="T.CSV")
     assert read_csv(path)[0]["ticket_id"] == "T1"
+
+
+# --- quick_check: first look without loading the file ---
+
+def test_quick_check_counts_rows_and_rejected(tmp_path):
+    path = write(tmp_path, "ticket_id,message\nT1,ok\n,no id\nT3,\nT1,ok\n, \n")
+    rows, reasons, first = quick_check(path)
+    assert rows == 5
+    assert reasons == {"empty ticket_id": 1, "empty message": 1, "empty ticket_id and message": 1}
+    assert first == [(3, "empty ticket_id"), (4, "empty message"), (6, "empty ticket_id and message")]
+
+
+def test_quick_check_keeps_only_a_few_examples(tmp_path):
+    path = write(tmp_path, "ticket_id,message\n" + ",x\n" * 100)
+    rows, reasons, first = quick_check(path, examples=3)
+    assert rows == 100
+    assert reasons["empty ticket_id"] == 100
+    assert [row for row, _ in first] == [2, 3, 4]
+
+
+def test_quick_check_agrees_with_validation():
+    rows, reasons, _ = quick_check("data/sample_tickets.csv")
+    valid, rejected = validation(read_csv("data/sample_tickets.csv"))
+    assert rows == len(valid) + len(rejected)
+    assert sum(reasons.values()) == len(rejected)
+
+
+def test_quick_check_runs_the_same_file_checks(tmp_path):
+    with pytest.raises(ValueError, match="Missing column: message"):
+        quick_check(write(tmp_path, "ticket_id,text\nT1,x\n"))

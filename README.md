@@ -24,8 +24,10 @@ so no virtual environment or `pip install` is needed just to run it. Then it ask
    or **drag and drop a CSV file into the terminal window** (or type its path).
    With Docker, files from your home folder and `input/` can be used
    (`start.sh` connects your home folder to the container; files are created as your user).
-2. **Preliminary analysis** — nothing is saved yet: how many rows will be saved, rejected
-   (with reasons and row numbers), duplicates, already in the database, expected categories.
+2. **Preliminary analysis** — a quick first look, nothing is saved: **rows in the file** and
+   **rejected rows** (with reasons and the first row numbers). The file is read row by row and not kept
+   in memory, so this is fast even for a very large file. Categories, duplicates and the database
+   check come only in the full analysis.
 3. **Run the full analysis and save the results? [Y/n]** — Enter = yes.
 4. **Save the results next to the file? [Y/n]** — Enter = yes: `<name>_summary.json` and
    `<name>_rejected.csv` are saved in the same folder as the CSV file. `n` = type (or drag and drop)

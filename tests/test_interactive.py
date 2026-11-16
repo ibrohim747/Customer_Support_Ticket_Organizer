@@ -85,7 +85,8 @@ def test_preliminary_then_full_analysis(project, args, capsys):
     assert run_interactive(args, answers("1", "y", "", "n")) == 0
     out = capsys.readouterr().out
     assert "Preliminary analysis: input/tickets.csv" in out
-    assert "Will be saved:       2" in out
+    assert "Rows in file:  4" in out
+    assert "Rejected:      1  (empty ticket_id: 1)" in out
     assert "row 4: empty ticket_id" in out
     assert "Full analysis" in out and "Done." in out
     # saved next to the CSV, named after it; the database stays in output/
@@ -102,12 +103,14 @@ def test_answer_no_saves_nothing(project, args, capsys):
     assert not (project / "output" / "summary.json").exists()
 
 
-def test_second_file_shows_already_in_database(project, args, capsys):
-    # first pass saves the file, second pass on the same file: preliminary shows it is already there
-    run_interactive(args, answers("1", "y", "", "y", "1", "n", "n"))
+def test_preliminary_shows_only_rows_and_rejected(project, args, capsys):
+    run_interactive(args, answers("1", "n", "n"))
     out = capsys.readouterr().out
-    assert "Already in database: 2" in out
-    assert "Will be saved:       0" in out
+    preliminary = out[out.index("Preliminary analysis"):out.index("Skipped, nothing was saved")]
+    assert "Rows in file" in preliminary and "Rejected" in preliminary
+    for heavy in ("Categories", "Duplicates", "Already in database", "Will be saved"):
+        assert heavy not in preliminary
+    assert not (project / "output" / "tickets.db").exists()  # the database is not even opened
 
 
 def test_bad_file_shows_error_and_continues(project, args, capsys):
@@ -141,7 +144,7 @@ def test_clean_path_removes_spaces_and_quotes(typed, expected):
 def test_dragged_path_with_quotes_is_read(project, args, capsys):
     path = str(project / "input" / "tickets.csv")
     assert run_interactive(args, answers(f"'{path}' ", "n", "n")) == 0
-    assert "Rows in file:        4" in capsys.readouterr().out
+    assert "Rows in file:  4" in capsys.readouterr().out
 
 
 def test_missing_file_in_docker_shows_hint(project, args, capsys, monkeypatch):

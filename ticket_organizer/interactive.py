@@ -5,10 +5,8 @@ Started when the program is run without a CSV file (`python -m ticket_organizer`
 """
 import os
 import sys
-from collections import Counter
 from pathlib import Path
 
-from ticket_organizer.categorizer import categorize
 from ticket_organizer.cli import (
     EXIT_ERROR,
     EXIT_OK,
@@ -16,8 +14,7 @@ from ticket_organizer.cli import (
     error_message,
     run_full,
 )
-from ticket_organizer.reader import read_csv, remove_duplicates, validation
-from ticket_organizer.storage import count_already_saved, db_creator
+from ticket_organizer.reader import quick_check
 from ticket_organizer.summary import format_summary
 
 # Folders searched for CSV files: the user's files first, then the sample.
@@ -113,34 +110,23 @@ def choose_file(ask, dirs=SEARCH_DIRS):
 
 # --- the two analyses -------------------------------------------------------
 
-def preliminary_analysis(csv_path, db_path):
-    """Read, validate and categorize without saving anything; print what a full run would do."""
-    rows = read_csv(csv_path)
-    valid, rejected = validation(rows)
-    unique, duplicates = remove_duplicates(valid)
-    categories = Counter(c for record in unique for c in categorize(record["message"]))
+def preliminary_analysis(csv_path):
+    """Quick first look: rows in the file and rejected rows only.
 
-    conn = db_creator(db_path)
-    try:
-        already = count_already_saved(conn, unique)
-    finally:
-        conn.close()
-
-    reasons = Counter(record["reason"] for record in rejected)
+    Nothing is saved, categorized or compared with the database, and the file is read
+    row by row — fast and light even for a very large file. Everything else is in the full analysis.
+    """
+    rows, reasons, first_rejected = quick_check(csv_path, examples=REJECTED_EXAMPLES)
+    rejected = sum(reasons.values())
     reasons_text = ", ".join(f"{reason}: {count}" for reason, count in reasons.items())
 
     title(f"Preliminary analysis: {csv_path}")
-    print(f"  Rows in file:        {len(rows)}")
-    print(f"  Will be saved:       {len(unique) - already}")
-    print(f"  Rejected:            {len(rejected)}" + (f"  ({reasons_text})" if reasons_text else ""))
-    print(f"  Duplicates in file:  {len(duplicates)}")
-    print(f"  Already in database: {already}")
-    if categories:
-        print("  Categories:          " + ", ".join(f"{c} {n}" for c, n in sorted(categories.items())))
-    if rejected:
+    print(f"  Rows in file:  {rows}")
+    print(f"  Rejected:      {rejected}" + (f"  ({reasons_text})" if reasons_text else ""))
+    if first_rejected:
         print(f"  Rejected rows (first {REJECTED_EXAMPLES}):")
-        for record in rejected[:REJECTED_EXAMPLES]:
-            print(f"    row {record['row']}: {record['reason']}")
+        for row_number, reason in first_rejected:
+            print(f"    row {row_number}: {reason}")
 
 
 def _writable(folder):
@@ -198,7 +184,7 @@ def run_interactive(args, ask=input):
         while True:
             csv_path = choose_file(ask)
             try:
-                preliminary_analysis(csv_path, args.db)
+                preliminary_analysis(csv_path)
                 if ask_yes_no("Run the full analysis and save the results?", True, ask):
                     full_analysis(csv_path, args, ask)
                 else:
