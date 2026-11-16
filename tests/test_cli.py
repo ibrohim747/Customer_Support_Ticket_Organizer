@@ -158,4 +158,4 @@ def test_process_file_without_timings_still_works(tmp_path):
     conn = db_creator(":memory:")
     summary, _ = process_file(SAMPLE, conn)  # timings not passed
     conn.close()
-    assert summary["accepted"] == 14
+    assert summary.accepted == 14

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# One-command start. Uses Docker if it is available, otherwise Python 3.10+
-# (the program itself needs only the Python standard library — nothing to install).
+# One-command start. Uses Docker if it is available, otherwise Python 3.10+.
+# Without Docker the program needs the pydantic package: on the first run a virtual
+# environment (.venv) is created and requirements.txt is installed into it.
 #
 #   ./start.sh                  -> interactive: choose a file, preliminary analysis, confirm, full analysis
 #   ./start.sh input/my.csv     -> full analysis of one file, no questions
@@ -37,14 +38,36 @@ find_python() {
     return 1
 }
 
+venv_python() {
+    # Linux / macOS: .venv/bin/python, Windows (Git Bash): .venv/Scripts/python.exe
+    for path in .venv/bin/python .venv/Scripts/python.exe; do
+        if [ -x "$path" ]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    return 1
+}
+
 run_with_python() {
     if ! PYTHON=$(find_python); then
         echo "Python 3.10 or newer is not installed: https://www.python.org/downloads/"
         echo "(or install Docker: https://docs.docker.com/get-docker/)"
         exit 1
     fi
-    echo "Running with $("$PYTHON" --version)."
-    exec "$PYTHON" -m ticket_organizer "$@"
+
+    # The program needs pydantic. Use .venv; create it and install packages the first time.
+    if ! VENV_PY=$(venv_python) || ! "$VENV_PY" -c "import pydantic" 2>/dev/null; then
+        echo "First run without Docker: installing the needed packages into .venv (once)..."
+        if ! "$PYTHON" -m venv .venv; then
+            echo "Could not create .venv. On Debian / Ubuntu: sudo apt install python3-venv"
+            exit 1
+        fi
+        VENV_PY=$(venv_python)
+        "$VENV_PY" -m pip install --quiet --disable-pip-version-check -r requirements.txt
+    fi
+    echo "Running with $("$VENV_PY" --version) (.venv)."
+    exec "$VENV_PY" -m ticket_organizer "$@"
 }
 
 run_with_docker() {

@@ -755,3 +755,44 @@ old scenarios now answer `y` / `n` instead of Enter. pytest: 111 passed. README 
 ends with the time block (read + validate 1.2 ms, categorize 7.0 ms, save 2.7 ms, write 0.3 ms, total 11 ms).
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Branch `pydantic-version`: the same program with Pydantic models
+
+**What I asked:** explain why / what Pydantic gives (it was **not** used: `main` is standard library only, plain
+dicts), then a second version of the project with Pydantic on a new branch (I created `pydantic-version`).
+
+**What Claude changed (only on this branch):**
+- `requirements.txt`: + `pydantic` 2.14.3 (and its dependencies), from `pip freeze`.
+- New `models.py`:
+  - `Ticket` — `str_strip_whitespace`, `ticket_id` / `message` `min_length=1`, `row >= 2`,
+    `None -> ""` validator (short CSV rows), `categories` with `default_factory=list`, `key` property.
+  - `RejectedRow`, `SkippedRow` — row number + reason.
+  - `SkippedCounts`, `Summary` — counts `>= 0`; `model_validator` checks
+    `rows_read == accepted + rejected + skipped` and `skipped.total` (before: an `if` in `build_summary`).
+  - `parse_row()` — CSV row -> `Ticket`, or on `ValidationError` -> `RejectedRow`; the failed fields
+    (`error.errors()[...]["loc"]`) give the same reasons as before.
+- `reader.py`: `validation`, `quick_check`, `remove_duplicates` use the models (`clean_row` / `reject_reason`
+  removed — the model is the single place for the rules).
+- `storage.py`: takes / returns `Ticket` / `SkippedRow`; a ticket without categories -> `ValueError`.
+- `summary.py`: `build_summary` returns `Summary`; JSON via `model_dump_json()`; rejected rows via `model_dump()`.
+- `start.sh`: without Docker it now creates `.venv` and installs `requirements.txt` on the first run.
+- Tests: all dict-based tests moved to models; new `tests/test_models.py` (25 tests). pytest: 149 passed.
+
+**Checked by Claude:**
+- **Same results as `main`:** ran both versions on `data/sample_tickets.csv` and `tests/fixtures/golden_tickets.csv`
+  → `summary.json`, `rejected.csv` byte-identical, database rows identical.
+- 1,000,000 rows: Pydantic is about **2× slower** (preliminary 3.3 s vs 1.5 s, read + validate 4.2 s vs 2.0 s);
+  memory of the preliminary analysis still does not grow with the file.
+- `./start.sh --python` on a clean copy: 1st run installs into `.venv`, 2nd run starts at once.
+  `./start.sh --docker`: image with Pydantic; tests in the container 148 passed + 1 skipped (root case).
+
+**My mistake on the way (Claude):** to smoke-test the modules I ran `python -m ticket_organizer.storage` /
+`.summary` — their `__main__` blocks write to the project's real `output/` (overwrote `output/summary.json`,
+`output/rejected.csv` with the sample results; the sample was already in `output/tickets.db`, so it was skipped).
+
+**For the demo — main vs pydantic-version:** rules in one place, typos fail at once, the summary validates itself,
+easy JSON in / out; cost: an extra dependency (no more "run with plain python3") and ~2× slower per row.
+
+**Verified by me:** _TODO_

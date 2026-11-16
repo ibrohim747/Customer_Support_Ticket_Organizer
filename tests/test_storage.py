@@ -2,6 +2,7 @@ import pytest
 
 import sqlite3
 
+from ticket_organizer.models import Ticket
 from ticket_organizer.storage import (
     count_messages,
     count_per_category,
@@ -19,7 +20,7 @@ def conn():
 
 
 def rec(ticket_id, message, categories, row=2):
-    return {"row": row, "ticket_id": ticket_id, "message": message, "categories": categories}
+    return Ticket(row=row, ticket_id=ticket_id, message=message, categories=categories)
 
 
 def all_rows(conn):
@@ -50,7 +51,7 @@ def test_reinsert_same_message_is_skipped_once(conn):
 
     assert saved == []
     assert len(skipped) == 1  # one message, not 2 rows
-    assert skipped[0]["reason"] == "already in database"
+    assert skipped[0].reason == "already in database"
     assert len(all_rows(conn)) == 2  # DB content did not change
 
 
@@ -66,7 +67,7 @@ def test_running_same_file_twice_gives_same_db(conn):
     saved, skipped = save_messages(conn, records)
 
     assert saved == []
-    assert [r["row"] for r in skipped] == [2, 3, 4]
+    assert [r.row for r in skipped] == [2, 3, 4]
     assert all_rows(conn) == before
 
 
@@ -89,8 +90,8 @@ def test_count_per_category(conn):
 
 def test_error_rolls_back_whole_call(conn):
     good = rec("T1", "a", ["Billing"])
-    bad = {"row": 3, "ticket_id": "T2", "message": "b"}  # no "categories" -> KeyError
-    with pytest.raises(KeyError):
+    bad = rec("T2", "b", [], row=3)  # no categories -> ValueError in the middle of the call
+    with pytest.raises(ValueError, match="row 3 has no categories"):
         save_messages(conn, [good, bad])
     assert all_rows(conn) == []  # "good" was not half-saved
 

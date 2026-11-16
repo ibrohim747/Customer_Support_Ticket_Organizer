@@ -60,5 +60,5 @@ if __name__ == "__main__":
 
     valid, _ = validation(read_csv("data/sample_tickets.csv"))
     unique, _ = remove_duplicates(valid)
-    for record in unique:
-        print(record["row"], record["ticket_id"], categorize(record["message"]), record["message"])
+    for ticket in unique:
+        print(ticket.row, ticket.ticket_id, categorize(ticket.message), ticket.message)

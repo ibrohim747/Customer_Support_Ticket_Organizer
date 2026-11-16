@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+from ticket_organizer.models import SkippedRow
+
 
 def db_creator(db_path):
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -22,27 +24,33 @@ def _is_saved(conn, ticket_id, message):
     return row is not None
 
 
-def save_messages(conn, records):
-    """Save records {"row", "ticket_id", "message", "categories"}: one DB row per category.
+def save_messages(conn, tickets):
+    """Save Tickets (models.Ticket with categories filled in): one DB row per category.
 
     A message whose (ticket_id, message) is already in the DB is skipped as a whole
     and reported once, no matter how many categories it has.
     Everything is saved in one transaction: if something fails, nothing from this
     call is saved (no half-saved file, no half-saved message).
-    Returns (saved, skipped) — lists of records, counted per message, not per DB row.
+    Returns (saved Tickets, SkippedRows) — counted per message, not per DB row.
     """
     saved = []
     skipped = []
     with conn:  # commit at the end, rollback on any error
-        for record in records:
-            if _is_saved(conn, record["ticket_id"], record["message"]):
-                skipped.append({**record, "reason": "already in database"})
+        for ticket in tickets:
+            if _is_saved(conn, ticket.ticket_id, ticket.message):
+                skipped.append(SkippedRow(
+                    row=ticket.row, ticket_id=ticket.ticket_id, message=ticket.message,
+                    reason="already in database",
+                ))
                 continue
+            if not ticket.categories:
+                # Every saved message needs at least one category ("Other" if nothing matched).
+                raise ValueError(f"Ticket from row {ticket.row} has no categories")
             conn.executemany(
                 "INSERT INTO messages (ticket_id, message, category) VALUES (?, ?, ?)",
-                [(record["ticket_id"], record["message"], c) for c in record["categories"]],
+                [(ticket.ticket_id, ticket.message, c) for c in ticket.categories],
             )
-            saved.append(record)
+            saved.append(ticket)
     return saved, skipped
 
 
@@ -107,8 +115,8 @@ if __name__ == "__main__":
 
     valid, rejected = validation(read_csv("data/sample_tickets.csv"))
     unique, duplicates = remove_duplicates(valid)
-    for record in unique:
-        record["categories"] = categorize(record["message"])
+    for ticket in unique:
+        ticket.categories = categorize(ticket.message)
 
     conn = db_creator("output/tickets.db")
     saved, already = save_messages(conn, unique)

@@ -4,10 +4,15 @@ Reads customer messages from a CSV file, rejects broken rows, skips duplicates,
 assigns one or more categories (Billing, Account, Technical, Other) by keyword rules,
 stores the messages in an SQLite database and writes a summary.
 
+> **Branch `pydantic-version`:** the same program, but the data is described with
+> [Pydantic](https://docs.pydantic.dev/) models (`ticket_organizer/models.py`) instead of plain dicts.
+> Results are identical to `main`; see [Pydantic models](#pydantic-models) below.
+
 ## Quick start
 
 Needs `git` and **one** of: [Docker](https://docs.docker.com/get-docker/) or
-[Python 3.10+](https://www.python.org/downloads/). Nothing else to install.
+[Python 3.10+](https://www.python.org/downloads/). Without Docker, `start.sh` creates `.venv` and installs
+the packages (`pydantic`) on the first run.
 
 ```
 git clone https://github.com/ibrohim747/Customer_Support_Ticket_Organizer.git
@@ -16,8 +21,7 @@ cd Customer_Support_Ticket_Organizer
 ```
 
 `start.sh` uses Docker if it is available (builds the image: about a minute the first time,
-a few seconds later), otherwise Python — the program needs only the standard library,
-so no virtual environment or `pip install` is needed just to run it. Then it asks you:
+a few seconds later), otherwise Python with `.venv`. Then it asks you:
 
 1. **Select a CSV file** — a numbered list of files from `input/` (put your own files there)
    and the sample `data/sample_tickets.csv`. Press Enter for the first one, type a number,
@@ -240,6 +244,26 @@ rejected rows go to `output/rejected.csv`.
   **whole database**. A message can have several categories, so the category sum can be
   bigger than the number of accepted messages.
 
+## Pydantic models
+
+`ticket_organizer/models.py` describes the data; Pydantic checks it when an object is created:
+
+| Model | What it is | Rules checked by the model |
+|---|---|---|
+| `Ticket` | a valid CSV message (+ its categories) | values stripped; `ticket_id` and `message` not empty; `row` ≥ 2; missing value (`None`) = empty |
+| `RejectedRow` | a row that cannot be used | row number + reason (written to `rejected.csv`) |
+| `SkippedRow` | duplicate in the file / already in the database | row number + reason |
+| `Summary` | the numbers of one run | no negative counts; `rows_read = accepted + rejected + skipped`; `skipped.total` = its parts |
+
+`parse_row()` turns a CSV row into a `Ticket`, or — when Pydantic raises `ValidationError` — into a
+`RejectedRow` with the same reasons as before (`empty ticket_id`, `empty message`, both).
+`summary.json` is written with `Summary.model_dump_json()` and can be read back with
+`Summary.model_validate_json()`.
+
+**Compared with `main` (plain dicts):** rules are in one place, typos like `ticket.mesage` fail at once,
+the summary checks itself. The cost: one more package to install, and about **2× slower** reading
+(a model object per row): 1,000,000 rows — preliminary analysis 3.3 s vs 1.5 s, read + validate 4.2 s vs 2.0 s.
+
 ## Assumptions and limitations
 
 - Messages are in **English**; keywords are English only.
@@ -270,6 +294,7 @@ ticket_organizer/   program code
   storage.py        SQLite: save messages, count per category
   summary.py        build / print / save the summary and rejected.csv
   timing.py         measure and print the time of each step
+  models.py         Pydantic models: Ticket, RejectedRow, SkippedRow, Summary (+ parse_row)
   cli.py            command line (argparse), runs all steps
   interactive.py    interactive mode: choose file, preliminary analysis, confirm, full analysis
   __main__.py       makes `python -m ticket_organizer` work

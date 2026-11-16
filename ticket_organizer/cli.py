@@ -72,8 +72,8 @@ def process_file(csv_path, conn, timings=None):
         valid, rejected = validation(rows)
         unique, duplicates = remove_duplicates(valid)
     with timed(timings, "categorize"):
-        for record in unique:
-            record["categories"] = categorize(record["message"])
+        for ticket in unique:
+            ticket.categories = categorize(ticket.message)
     with timed(timings, "save to database"):
         saved, already_in_db = save_messages(conn, unique)
         summary = build_summary(
