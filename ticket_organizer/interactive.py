@@ -18,6 +18,7 @@ from ticket_organizer.cli import (
 )
 from ticket_organizer.reader import quick_check
 from ticket_organizer.summary import format_summary
+from ticket_organizer.timing import format_timings, timed
 
 # Folders searched for CSV files: the user's files first, then the sample.
 SEARCH_DIRS = ("input", "data")
@@ -119,7 +120,9 @@ def preliminary_analysis(csv_path):
     Nothing is saved, categorized or compared with the database, and the file is read
     row by row — fast and light even for a very large file. Everything else is in the full analysis.
     """
-    rows, reasons, first_rejected = quick_check(csv_path, examples=REJECTED_EXAMPLES)
+    timings = {}
+    with timed(timings, "preliminary analysis"):
+        rows, reasons, first_rejected = quick_check(csv_path, examples=REJECTED_EXAMPLES)
     rejected = sum(reasons.values())
     reasons_text = ", ".join(f"{reason}: {count}" for reason, count in reasons.items())
 
@@ -130,6 +133,7 @@ def preliminary_analysis(csv_path):
         print(f"  Rejected rows (first {REJECTED_EXAMPLES}):")
         for row_number, reason in first_rejected:
             print(f"    row {row_number}: {reason}")
+    print(format_timings(timings))
 
 
 def full_path(path):
@@ -198,7 +202,8 @@ def full_analysis(csv_path, args, ask):
     summary_path = str(Path(folder) / f"{name}_summary.json")
     rejected_path = str(Path(folder) / f"{name}_rejected.csv")
 
-    summary = run_full(csv_path, db_path, summary_path, rejected_path)
+    timings = {}
+    summary = run_full(csv_path, db_path, summary_path, rejected_path, timings)
     title(f"Full analysis: {csv_path}")
     print(format_summary(summary))
     print()
@@ -206,6 +211,7 @@ def full_analysis(csv_path, args, ask):
     print(f"  database:      {Path(db_path).name}")
     print(f"  summary:       {Path(summary_path).name}")
     print(f"  rejected rows: {Path(rejected_path).name}")
+    print(format_timings(timings))
     ok("Done.")
     offer_sql_export(folder, db_path, ask)
 
@@ -219,9 +225,12 @@ def offer_sql_export(folder, db_path, ask):
     if not ask_yes_no("Export the database as a .sql file for PostgreSQL?", ask):
         return
     sql_path = str(Path(folder) / "tickets.sql")
-    rows = run_export(db_path, sql_path)
+    timings = {}
+    with timed(timings, "export .sql"):
+        rows = run_export(db_path, sql_path)
     ok(f"Exported {rows} rows to {sql_path}. Import it into PostgreSQL with:")
     print(import_hint(sql_path))
+    print(format_timings(timings))
 
 
 # --- main loop ----------------------------------------------------------------

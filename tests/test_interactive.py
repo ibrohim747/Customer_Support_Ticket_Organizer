@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 
 import pytest
 
@@ -206,6 +207,10 @@ def test_enter_for_folder_uses_output(project, args):
     assert (project / "output" / "tickets_summary.json").exists()
 
 
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root can write even into read-only folders (e.g. pytest inside Docker)",
+)
 def test_not_writable_folder_asks_for_another(project, args, capsys):
     read_only = project / "read_only"
     read_only.mkdir()
@@ -257,3 +262,13 @@ def test_file_outside_project_gets_output_folder_next_to_it(project, args, capsy
         "march_rejected.csv", "march_summary.json", "tickets.db",
     ]
     assert not (project / "output").exists()  # nothing in the project's output/
+
+
+def test_each_interactive_step_shows_its_time(project, args, capsys):
+    run_interactive(args, answers("1", "y", "y", "y", "n"))  # file, full, save, export, another
+    out = capsys.readouterr().out
+    assert "preliminary analysis:" in out
+    full = out[out.index("Full analysis"):out.index("Done.")]
+    for step in ["read + validate:", "categorize:", "save to database:", "write files:", "total:"]:
+        assert step in full
+    assert "export .sql:" in out[out.index("Exported"):]

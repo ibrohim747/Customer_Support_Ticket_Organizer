@@ -41,6 +41,10 @@ so no virtual environment or `pip install` is needed just to run it. Then it ask
    `psql -d your_db -f tickets.sql`.
 6. **Check another file? [y/n]** — `n` ends the program.
 
+Each step ends with a **Time:** block — how long it took. The full analysis shows every step
+(read + validate, categorize, save to database, write files) and the total. The command line
+(`python -m ticket_organizer file.csv`) prints the same block at the end.
+
 All yes/no questions end with `[y/n]` and understand small and capital letters
 (`y`, `Y`, `yes`, `n`, `N`, `no`, also `да` / `нет`). There is no hidden default: Enter alone asks again.
 
@@ -265,6 +269,7 @@ ticket_organizer/   program code
   categorizer.py    keyword rules -> categories
   storage.py        SQLite: save messages, count per category
   summary.py        build / print / save the summary and rejected.csv
+  timing.py         measure and print the time of each step
   cli.py            command line (argparse), runs all steps
   interactive.py    interactive mode: choose file, preliminary analysis, confirm, full analysis
   __main__.py       makes `python -m ticket_organizer` work

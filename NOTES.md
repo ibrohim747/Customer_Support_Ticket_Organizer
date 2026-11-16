@@ -726,3 +726,32 @@ Tests: 12 answer variants, empty / unknown answer asks again, all 4 questions of
 old scenarios now answer `y` / `n` instead of Enter. pytest: 111 passed. README updated.
 
 **Verified by me:** _TODO_
+
+---
+
+## 2026-11-16 — Time of each step at the bottom of the output
+
+**What I asked:** show at the bottom of the answer how much time each step took.
+
+**What Claude changed:**
+- New `timing.py`: `timed(timings, step)` — a `with` block that writes the step's duration into a dict
+  (`perf_counter` — a clock made for measuring durations); `format_duration` (`0.4 ms`, `12 ms`, `2.35 s`,
+  `2 min 5 s`); `format_timings` — the `Time:` block with all numbers in one column and a `total` line.
+- `cli.process_file` / `run_full` take an optional `timings` dict: read + validate, categorize,
+  save to database, write files (+ export .sql). Without the dict they work as before.
+- Interactive mode: `Time:` at the bottom of the preliminary analysis, the full analysis (every step + total)
+  and the export. The command line prints the same block as its last lines.
+
+**Problems on the way:**
+- Small sample showed "0 ms" → looked like a bug → below 10 ms one decimal (`0.4 ms`).
+- A test caught misaligned numbers: the column width was computed from the step names only, but `total:` is
+  longer than `read:` → width now includes "total".
+- Docker: build failed once — Docker's build cache was missing a layer ("parent snapshot does not exist");
+  `docker build --no-cache` fixed it. Not related to the code.
+- `pytest` inside Docker runs as **root**, and root can write into read-only folders → the
+  "not writable folder" test cannot work there → skipped when run as root (`skipif`), still runs normally.
+
+**Checked:** pytest 124 passed (13 new); in Docker 123 passed + 1 skipped (the root case); sample run in Docker
+ends with the time block (read + validate 1.2 ms, categorize 7.0 ms, save 2.7 ms, write 0.3 ms, total 11 ms).
+
+**Verified by me:** _TODO_

@@ -5,6 +5,7 @@ import sys
 from ticket_organizer.categorizer import categorize
 from ticket_organizer.reader import read_csv, remove_duplicates, validation
 from ticket_organizer.storage import count_per_category, db_creator, export_sql, save_messages
+from ticket_organizer.timing import format_timings, timed
 from ticket_organizer.summary import (
     build_summary,
     format_summary,
@@ -61,29 +62,36 @@ def build_parser():
     return parser
 
 
-def process_file(csv_path, conn):
-    """read -> validate -> remove duplicates -> categorize -> save. Returns (summary, rejected)."""
-    rows = read_csv(csv_path)
-    valid, rejected = validation(rows)
-    unique, duplicates = remove_duplicates(valid)
-    for record in unique:
-        record["categories"] = categorize(record["message"])
-    saved, already_in_db = save_messages(conn, unique)
-    summary = build_summary(
-        len(rows), saved, rejected, duplicates, already_in_db, count_per_category(conn)
-    )
+def process_file(csv_path, conn, timings=None):
+    """read -> validate -> remove duplicates -> categorize -> save. Returns (summary, rejected).
+
+    If `timings` is a dict, the time of each step is written into it.
+    """
+    with timed(timings, "read + validate"):
+        rows = read_csv(csv_path)
+        valid, rejected = validation(rows)
+        unique, duplicates = remove_duplicates(valid)
+    with timed(timings, "categorize"):
+        for record in unique:
+            record["categories"] = categorize(record["message"])
+    with timed(timings, "save to database"):
+        saved, already_in_db = save_messages(conn, unique)
+        summary = build_summary(
+            len(rows), saved, rejected, duplicates, already_in_db, count_per_category(conn)
+        )
     return summary, rejected
 
 
-def run_full(csv_path, db_path, summary_path, rejected_path):
+def run_full(csv_path, db_path, summary_path, rejected_path, timings=None):
     """Full analysis: process the file, save the DB, summary JSON and rejected rows. Returns the summary."""
     conn = db_creator(db_path)
     try:
-        summary, rejected = process_file(csv_path, conn)
+        summary, rejected = process_file(csv_path, conn, timings)
     finally:
         conn.close()
-    save_summary_json(summary, summary_path)
-    save_rejected_csv(rejected, rejected_path)
+    with timed(timings, "write files"):
+        save_summary_json(summary, summary_path)
+        save_rejected_csv(rejected, rejected_path)
     return summary
 
 
@@ -119,9 +127,14 @@ def main(argv=None, ask=input):
         from ticket_organizer.interactive import run_interactive
         return run_interactive(args, ask)
 
+    timings = {}
     try:
-        summary = run_full(args.csv_file, args.db, args.summary, args.rejected)
-        exported = run_export(args.db, args.export_sql) if args.export_sql else None
+        summary = run_full(args.csv_file, args.db, args.summary, args.rejected, timings)
+        if args.export_sql:
+            with timed(timings, "export .sql"):
+                exported = run_export(args.db, args.export_sql)
+        else:
+            exported = None
     except USER_ERRORS as error:
         print(f"Error: {error_message(error, args.csv_file)}", file=sys.stderr)
         return EXIT_ERROR
@@ -132,4 +145,6 @@ def main(argv=None, ask=input):
     if exported is not None:
         print(f"Exported {exported} rows to {args.export_sql}. Import it into PostgreSQL with:")
         print(import_hint(args.export_sql))
+    print()
+    print(format_timings(timings))
     return EXIT_OK

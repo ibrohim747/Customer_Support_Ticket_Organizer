@@ -140,3 +140,22 @@ def test_export_sql_option(tmp_path, capsys):
     assert main([SAMPLE, *out_args(tmp_path), "--export-sql", str(sql)]) == 0
     assert "Exported 15 rows" in capsys.readouterr().out  # 14 messages, T0147 has 2 categories
     assert sql.read_text(encoding="utf-8").count("INSERT INTO messages") == 15
+
+
+def test_time_of_each_step_is_shown_at_the_bottom(tmp_path, capsys):
+    main([SAMPLE, *out_args(tmp_path), "--export-sql", str(tmp_path / "t.sql")])
+    out = capsys.readouterr().out
+    time_block = out[out.index("Time:"):]
+    for step in ["read + validate", "categorize", "save to database", "write files", "export .sql", "total"]:
+        assert step + ":" in time_block
+    assert out.rstrip().splitlines()[-1].strip().startswith("total:")  # the very last line
+
+
+def test_process_file_without_timings_still_works(tmp_path):
+    from ticket_organizer.cli import process_file
+    from ticket_organizer.storage import db_creator
+
+    conn = db_creator(":memory:")
+    summary, _ = process_file(SAMPLE, conn)  # timings not passed
+    conn.close()
+    assert summary["accepted"] == 14
